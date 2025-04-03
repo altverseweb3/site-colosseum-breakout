@@ -8,7 +8,7 @@
     "vercel-build": "chmod +x ./vercel-build.sh && ./vercel-build.sh",
     "start": "next start",
     "lint": "next lint",
-    "prepare": "cd .. && husky install site/.husky",
+    "prepare": "husky install .husky",
     "postinstall": "chmod +x .husky/pre-push && chmod +x .husky/pre-commit"
   },
   "dependencies": {
