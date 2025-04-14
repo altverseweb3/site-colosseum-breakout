@@ -8,7 +8,7 @@ import {
   Chain,
 } from "@/types/web3";
 import { defaultSourceChain, defaultDestinationChain } from "@/config/chains";
-import { loadAllTokens, StructuredTokenData } from "@/utils/tokenMethods";
+import { loadTokensForSpecificChains } from "@/utils/tokenMethods";
 
 const useWeb3Store = create<Web3StoreState>()(
   persist(
@@ -73,76 +73,117 @@ const useWeb3Store = create<Web3StoreState>()(
 
       // Wallet actions
       addWallet: (wallet: WalletInfo) => {
-        const walletForStorage = {
-          type: wallet.type,
-          name: wallet.name,
-          address: wallet.address,
-          chainId: wallet.chainId,
-        };
-
         set((state) => {
-          const existingWalletIndex = state.connectedWallets.findIndex(
+          // Check if wallet of this type already exists
+          const exists = state.connectedWallets.some(
             (w) => w.type === wallet.type,
           );
-          let newWallets: Array<Omit<WalletInfo, "provider">>;
 
-          if (existingWalletIndex >= 0) {
-            newWallets = [...state.connectedWallets];
-            newWallets[existingWalletIndex] = walletForStorage;
-          } else {
-            newWallets = [...state.connectedWallets, walletForStorage];
+          const newWallets = exists
+            ? state.connectedWallets.map((w) =>
+                w.type === wallet.type ? wallet : w,
+              )
+            : [...state.connectedWallets, wallet];
+
+          // Set as active wallet if no active wallet or this wallet type is already active
+          const newActiveWallet =
+            !state.activeWallet ||
+            (state.activeWallet && state.activeWallet.type === wallet.type)
+              ? wallet
+              : state.activeWallet;
+
+          // Refresh token balances with the wallet address
+          if (wallet.address) {
+            // Only load tokens for currently selected chains
+            get().loadTokensForActiveChains();
           }
 
           return {
             connectedWallets: newWallets,
-            activeWallet: state.activeWallet || walletForStorage,
+            activeWallet: newActiveWallet,
           };
         });
       },
 
       removeWallet: (walletType: WalletType) => {
-        set((state) => ({
-          connectedWallets: state.connectedWallets.filter(
+        set((state) => {
+          const newWallets = state.connectedWallets.filter(
             (w) => w.type !== walletType,
-          ),
-          activeWallet:
-            state.activeWallet?.type === walletType
-              ? state.connectedWallets.find((w) => w.type !== walletType) ||
-                null
-              : state.activeWallet,
-        }));
+          );
+
+          // If removing active wallet, set a new one if available
+          let newActiveWallet = state.activeWallet;
+          if (state.activeWallet?.type === walletType) {
+            newActiveWallet = newWallets.length > 0 ? newWallets[0] : null;
+          }
+
+          // Refresh token balances without the removed wallet
+          if (state.activeWallet?.type === walletType) {
+            get().loadTokensForActiveChains();
+          }
+
+          return {
+            connectedWallets: newWallets,
+            activeWallet: newActiveWallet,
+          };
+        });
       },
 
       setActiveWallet: (walletType: WalletType) => {
-        set((state) => ({
-          activeWallet:
-            state.connectedWallets.find((w) => w.type === walletType) ||
-            state.activeWallet,
-        }));
+        set((state) => {
+          const wallet = state.connectedWallets.find(
+            (w) => w.type === walletType,
+          );
+          if (!wallet) return state;
+
+          // Refresh token balances if changing active wallet
+          if (state.activeWallet?.address !== wallet.address) {
+            get().loadTokensForActiveChains();
+          }
+
+          return { activeWallet: wallet };
+        });
       },
 
       updateWalletAddress: (walletType: WalletType, address: string) => {
-        set((state) => ({
-          connectedWallets: state.connectedWallets.map((wallet) =>
-            wallet.type === walletType ? { ...wallet, address } : wallet,
-          ),
-          activeWallet:
+        set((state) => {
+          const newWallets = state.connectedWallets.map((w) =>
+            w.type === walletType ? { ...w, address } : w,
+          );
+
+          const newActiveWallet =
             state.activeWallet?.type === walletType
               ? { ...state.activeWallet, address }
-              : state.activeWallet,
-        }));
+              : state.activeWallet;
+
+          // Refresh token balances if updating active wallet address
+          if (state.activeWallet?.type === walletType) {
+            get().loadTokensForActiveChains();
+          }
+
+          return {
+            connectedWallets: newWallets,
+            activeWallet: newActiveWallet,
+          };
+        });
       },
 
       updateWalletChainId: (walletType: WalletType, chainId: number) => {
-        set((state) => ({
-          connectedWallets: state.connectedWallets.map((wallet) =>
-            wallet.type === walletType ? { ...wallet, chainId } : wallet,
-          ),
-          activeWallet:
+        set((state) => {
+          const newWallets = state.connectedWallets.map((w) =>
+            w.type === walletType ? { ...w, chainId } : w,
+          );
+
+          const newActiveWallet =
             state.activeWallet?.type === walletType
               ? { ...state.activeWallet, chainId }
-              : state.activeWallet,
-        }));
+              : state.activeWallet;
+
+          return {
+            connectedWallets: newWallets,
+            activeWallet: newActiveWallet,
+          };
+        });
       },
 
       disconnectAll: () => {
@@ -150,41 +191,67 @@ const useWeb3Store = create<Web3StoreState>()(
           connectedWallets: [],
           activeWallet: null,
         });
+
+        // Refresh token balances without a wallet
+        get().loadTokensForActiveChains();
       },
 
       // Chain selection actions
       setSourceChain: (chain: Chain) => {
-        set((state) => ({
-          sourceChain: chain,
-          destinationChain:
-            state.destinationChain.id === chain.id
-              ? state.sourceChain
-              : state.destinationChain,
-          // Reset source token when changing chains
-          sourceToken: null,
-        }));
+        set((state) => {
+          const newState = {
+            sourceChain: chain,
+            destinationChain:
+              state.destinationChain.id === chain.id
+                ? state.sourceChain
+                : state.destinationChain,
+            // Reset source token when changing chains
+            sourceToken: null,
+          };
+
+          // Load tokens for the new source chain
+          setTimeout(() => {
+            get().loadTokensForChain(chain.id);
+          }, 0);
+
+          return newState;
+        });
       },
 
       setDestinationChain: (chain: Chain) => {
-        set((state) => ({
-          destinationChain: chain,
-          sourceChain:
-            state.sourceChain.id === chain.id
-              ? state.destinationChain
-              : state.sourceChain,
-          // Reset destination token when changing chains
-          destinationToken: null,
-        }));
+        set((state) => {
+          const newState = {
+            destinationChain: chain,
+            sourceChain:
+              state.sourceChain.id === chain.id
+                ? state.destinationChain
+                : state.sourceChain,
+            // Reset destination token when changing chains
+            destinationToken: null,
+          };
+
+          // Load tokens for the new destination chain
+          setTimeout(() => {
+            get().loadTokensForChain(chain.id);
+          }, 0);
+
+          return newState;
+        });
       },
 
       swapChains: () => {
-        set((state) => ({
-          sourceChain: state.destinationChain,
-          destinationChain: state.sourceChain,
-          // Swap tokens along with chains
-          sourceToken: state.destinationToken,
-          destinationToken: state.sourceToken,
-        }));
+        set((state) => {
+          const sourceChain = state.destinationChain;
+          const destinationChain = state.sourceChain;
+
+          return {
+            sourceChain,
+            destinationChain,
+            // Swap tokens along with chains
+            sourceToken: state.destinationToken,
+            destinationToken: state.sourceToken,
+          };
+        });
       },
 
       // Token selection actions
@@ -212,97 +279,172 @@ const useWeb3Store = create<Web3StoreState>()(
         }));
       },
 
-      loadTokens: async () => {
-        if (get().tokensLoading) return;
+      loadTokensForChain: async (chainId: string) => {
+        const { activeWallet } = get();
+
+        set((state) => ({
+          ...state,
+          tokensLoading: true,
+          tokensError: null,
+        }));
 
         try {
-          set({ tokensLoading: true, tokensError: null });
-          const structuredTokens: StructuredTokenData = await loadAllTokens();
+          console.log(`Loading tokens for chain: ${chainId}`);
 
-          // Get current serialized tokens
-          const currentSourceToken = get().sourceToken;
-          const currentDestinationToken = get().destinationToken;
+          const tokenData = await loadTokensForSpecificChains(
+            [chainId],
+            activeWallet?.address,
+          );
 
-          // Find the full token objects from the loaded tokens if they exist
-          let fullSourceToken = null;
-          let fullDestinationToken = null;
+          // Merge with existing token data
+          set((state) => {
+            const mergedCompositeKey = {
+              ...state.tokensByCompositeKey,
+              ...tokenData.byCompositeKey,
+            };
+            const mergedByChainId = { ...state.tokensByChainId };
+            const mergedByAddress = { ...state.tokensByAddress };
 
-          if (currentSourceToken) {
-            fullSourceToken =
-              structuredTokens.allTokensList.find(
-                (token) =>
-                  token.address.toLowerCase() ===
-                    currentSourceToken.address.toLowerCase() &&
-                  token.chainId === currentSourceToken.chainId,
-              ) || null;
-          }
+            // Add new chain tokens
+            for (const chainIdKey in tokenData.byChainId) {
+              mergedByChainId[chainIdKey] = tokenData.byChainId[chainIdKey];
+            }
 
-          if (currentDestinationToken) {
-            fullDestinationToken =
-              structuredTokens.allTokensList.find(
-                (token) =>
-                  token.address.toLowerCase() ===
-                    currentDestinationToken.address.toLowerCase() &&
-                  token.chainId === currentDestinationToken.chainId,
-              ) || null;
-          }
+            for (const chainIdKey in tokenData.byChainIdAndAddress) {
+              mergedByAddress[chainIdKey] =
+                tokenData.byChainIdAndAddress[chainIdKey];
+            }
 
-          set({
-            tokensByCompositeKey: structuredTokens.byCompositeKey,
-            tokensByChainId: structuredTokens.byChainId,
-            tokensByAddress: structuredTokens.byChainIdAndAddress,
-            allTokensList: structuredTokens.allTokensList,
-            // Rehydrate full token objects from the loaded token list
-            sourceToken: fullSourceToken,
-            destinationToken: fullDestinationToken,
-            tokensLoading: false,
-            tokensError: null,
+            const allTokensSet = new Set(
+              [...state.allTokensList, ...tokenData.allTokensList].map(
+                (t) => t.id,
+              ),
+            );
+            const uniqueTokens = [...allTokensSet].map((id) => {
+              // Prefer the new token data if available
+              return (
+                tokenData.allTokensList.find((t) => t.id === id) ||
+                state.allTokensList.find((t) => t.id === id)!
+              );
+            });
+
+            return {
+              tokensByCompositeKey: mergedCompositeKey,
+              tokensByChainId: mergedByChainId,
+              tokensByAddress: mergedByAddress,
+              allTokensList: uniqueTokens.filter(Boolean),
+              tokensLoading: false,
+            };
           });
         } catch (error) {
-          console.error("Error loading tokens:", error);
+          console.error("Error loading tokens for chain:", error);
           set({
-            tokensByCompositeKey: {}, // Reset on error
-            tokensByChainId: {},
-            tokensByAddress: {},
-            allTokensList: [],
-            tokensError: error instanceof Error ? error.message : String(error),
             tokensLoading: false,
+            tokensError: `Failed to load tokens for chain ${chainId}. Please try again later.`,
           });
         }
       },
 
-      getWalletTokens: (): Token[] => {
-        return get().allTokensList.filter((token) => token.isWalletToken);
+      // Load tokens for currently active chains
+      loadTokensForActiveChains: async () => {
+        const { sourceChain, destinationChain, activeWallet } = get();
+
+        set({ tokensLoading: true, tokensError: null });
+
+        try {
+          const chainIds = [sourceChain.id, destinationChain.id];
+
+          // Load tokens for just these chains
+          const tokenData = await loadTokensForSpecificChains(
+            chainIds,
+            activeWallet?.address,
+          );
+
+          set({
+            tokensByCompositeKey: tokenData.byCompositeKey,
+            tokensByChainId: tokenData.byChainId,
+            tokensByAddress: tokenData.byChainIdAndAddress,
+            allTokensList: tokenData.allTokensList,
+            tokensLoading: false,
+          });
+        } catch (error) {
+          console.error("Error loading tokens for active chains:", error);
+          set({
+            tokensLoading: false,
+            tokensError: "Failed to load tokens. Please try again later.",
+          });
+        }
       },
 
-      getAllTokens: (): Token[] => {
-        return get().allTokensList.filter((token) => !token.isWalletToken);
+      // TODO: remove this if not needed
+      loadTokens: async () => {
+        const { activeWallet, sourceChain, destinationChain } = get();
+
+        set({ tokensLoading: true, tokensError: null });
+
+        try {
+          const chainIds = [sourceChain.id, destinationChain.id];
+          console.log(
+            `loadTokens: Optimized to only load active chains: ${chainIds.join(", ")}`,
+          );
+
+          const tokenData = await loadTokensForSpecificChains(
+            chainIds,
+            activeWallet?.address,
+          );
+
+          set({
+            tokensByCompositeKey: tokenData.byCompositeKey,
+            tokensByChainId: tokenData.byChainId,
+            tokensByAddress: tokenData.byChainIdAndAddress,
+            allTokensList: tokenData.allTokensList,
+            tokensLoading: false,
+          });
+        } catch (error) {
+          console.error("Error loading tokens:", error);
+          set({
+            tokensLoading: false,
+            tokensError: "Failed to load tokens. Please try again later.",
+          });
+        }
       },
 
-      getTokensForChain: (chainId: number): Token[] => {
-        return get().tokensByChainId[chainId] || [];
+      getWalletTokens: () => {
+        const { allTokensList } = get();
+        return allTokensList.filter((token) => token.isWalletToken);
       },
 
-      getTokenById: (compositeKey: string): Token | undefined => {
-        return get().tokensByCompositeKey[compositeKey];
+      getAllTokens: () => {
+        return get().allTokensList;
       },
 
-      getTokenByAddress: (
-        address: string,
-        chainId: number,
-      ): Token | undefined => {
-        const lowerAddress = address.toLowerCase();
-        const chainTokensByAddress = get().tokensByAddress[chainId];
-        return chainTokensByAddress
-          ? chainTokensByAddress[lowerAddress]
-          : undefined;
+      getTokensForChain: (chainId: number) => {
+        const { tokensByChainId } = get();
+        return tokensByChainId[chainId] || [];
       },
 
-      findTokenByAddressAnyChain: (address: string): Token | undefined => {
-        const lowerAddress = address.toLowerCase();
-        return get().allTokensList.find(
-          (token) => token.address.toLowerCase() === lowerAddress,
-        );
+      getTokenById: (compositeKey: string) => {
+        const { tokensByCompositeKey } = get();
+        return tokensByCompositeKey[compositeKey];
+      },
+
+      getTokenByAddress: (address: string, chainId: number) => {
+        const { tokensByAddress } = get();
+        if (!tokensByAddress[chainId]) return undefined;
+        return tokensByAddress[chainId][address.toLowerCase()];
+      },
+
+      findTokenByAddressAnyChain: (address: string) => {
+        const { tokensByAddress } = get();
+        const normalizedAddress = address.toLowerCase();
+
+        for (const chainId in tokensByAddress) {
+          if (tokensByAddress[chainId][normalizedAddress]) {
+            return tokensByAddress[chainId][normalizedAddress];
+          }
+        }
+
+        return undefined;
       },
     }),
     {
@@ -425,6 +567,10 @@ export const useTokenByAddress = (
 
 export const useLoadTokens = () => {
   return useWeb3Store((state) => state.loadTokens);
+};
+
+export const useLoadTokensForActiveChains = () => {
+  return useWeb3Store((state) => state.loadTokensForActiveChains);
 };
 
 export const useTransactionDetails = () => {

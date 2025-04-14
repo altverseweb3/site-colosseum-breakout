@@ -108,10 +108,10 @@ const TokenListItem: React.FC<TokenListItemProps> = React.memo(
           </div>
           <div className="text-right">
             <div className="font-medium text-[#FAFAFA] numeric-input">
-              {token.userBalanceUsd}
+              {token.userBalanceUsd === "$0.00" ? "" : token.userBalanceUsd}
             </div>
             <div className="text-sm text-[#FAFAFA55] numeric-input">
-              {token.userBalance}
+              {token.userBalance === "0" ? "" : token.userBalance}
             </div>
           </div>
         </div>
@@ -255,15 +255,16 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   const [isTokenListReady, setTokenListReady] = useState(false);
   const tokensPreloadedRef = useRef(false);
   const [userIntentToOpen, setUserIntentToOpen] = useState(false);
+  const prevTokensLoadingRef = useRef(false);
 
   const tokensLoading = useTokensLoading();
   const sourceChain = useSourceChain();
   const destinationChain = useDestinationChain();
   const sourceToken = useSourceToken();
   const destinationToken = useDestinationToken();
+  const activeWallet = useWeb3Store((state) => state.activeWallet);
 
   const chainToShow = variant === "source" ? sourceChain : destinationChain;
-
   const selectedToken = variant === "source" ? sourceToken : destinationToken;
 
   const setSourceToken = useWeb3Store((state) => state.setSourceToken);
@@ -274,6 +275,36 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   const getTokensForChain = useWeb3Store((state) => state.getTokensForChain);
   const tokenCount = useWeb3Store((state) => state.allTokensList.length);
 
+  // Listen for completion of token loading
+  useEffect(() => {
+    // If tokens just finished loading (tokensLoading changing from true to false)
+    if (!tokensLoading && prevTokensLoadingRef.current) {
+      console.log(
+        "[SelectTokenButton] Tokens finished loading, refreshing token list",
+      );
+      setTokenListReady(false);
+      requestAnimationFrame(() => {
+        setTokenListReady(true);
+      });
+    }
+    prevTokensLoadingRef.current = tokensLoading;
+  }, [tokensLoading]);
+
+  // Listen for wallet changes to force token reload
+  useEffect(() => {
+    if (activeWallet) {
+      console.log(
+        "[SelectTokenButton] Wallet connected, forcing token refresh",
+      );
+      setTokenListReady(false);
+      tokensPreloadedRef.current = false; // Force reload
+      requestAnimationFrame(() => {
+        loadTokens(); // Force reload tokens when wallet connects
+      });
+    }
+  }, [activeWallet, loadTokens]);
+
+  // Initial token loading
   useEffect(() => {
     if (tokenCount === 0 && !tokensLoading && !tokensPreloadedRef.current) {
       tokensPreloadedRef.current = true;
@@ -281,12 +312,14 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
     }
   }, [loadTokens, tokensLoading, tokenCount]);
 
+  // Load tokens when user intends to open dropdown
   useEffect(() => {
     if (userIntentToOpen && tokenCount === 0 && !tokensLoading) {
       loadTokens();
     }
   }, [userIntentToOpen, loadTokens, tokensLoading, tokenCount]);
 
+  // Reset token list when dropdown closes
   useEffect(() => {
     let timerId: NodeJS.Timeout | undefined;
 
@@ -302,6 +335,7 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
     };
   }, [isOpen]);
 
+  // Initialize token list when dropdown opens
   useEffect(() => {
     if (isOpen && !isTokenListReady) {
       requestAnimationFrame(() => {

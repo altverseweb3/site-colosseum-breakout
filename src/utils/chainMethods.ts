@@ -34,7 +34,7 @@ export function handleChainChange(
     chain.name,
   );
 
-  // Update the current chain
+  // Update the current chain - this will trigger token loading for the new chain
   setCurrentChain(chain);
 
   // If same chain selected, find a different one for the opposite side
@@ -48,10 +48,20 @@ export function handleChainChange(
 
 /**
  * Swap source and destination chains
+ * Also loads token balances for both chains if needed
  */
 export function swapChains(): void {
   const store = useWeb3Store.getState();
+
+  // Swap the chains (this also swaps tokens)
   store.swapChains();
+
+  // Trigger loading of tokens for both chains if we have a wallet connected
+  if (store.activeWallet?.address) {
+    setTimeout(() => {
+      store.loadTokensForActiveChains();
+    }, 0);
+  }
 }
 
 /**

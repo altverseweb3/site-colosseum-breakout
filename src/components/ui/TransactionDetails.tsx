@@ -80,36 +80,40 @@ export function TransactionDetails({
     setIsEditingReceiveAddress(false);
   }, [receiveAddressInput, activeWallet, setReceiveAddress]);
 
-  // Initialize values from store - only run once on component mount
-  useEffect(
-    () => {
-      // Set initial slippage mode based on store value
-      const storeSlippage = transactionDetails.slippage;
+  const initializationRef = useRef(false);
 
-      if (storeSlippage === "auto" || !storeSlippage) {
-        // If auto or missing, set mode to auto
-        setSlippageMode("auto");
-        // Ensure store has the auto value
-        if (storeSlippage !== "auto") {
-          setSlippageValue("auto");
-        }
-      } else {
-        // If anything else, set mode to custom
-        setSlippageMode("custom");
-        setCustomSlippage(storeSlippage.replace("%", ""));
-      }
+  useEffect(() => {
+    if (initializationRef.current) return;
+    initializationRef.current = true;
 
-      // Set initial receive address
-      if (transactionDetails.receiveAddress) {
-        setReceiveAddressInput(transactionDetails.receiveAddress);
-      } else if (activeWallet) {
-        setReceiveAddressInput(activeWallet.address);
+    // Set initial slippage mode based on store value
+    const storeSlippage = transactionDetails.slippage;
+
+    if (storeSlippage === "auto" || !storeSlippage) {
+      // If auto or missing, set mode to auto
+      setSlippageMode("auto");
+      // Ensure store has the auto value
+      if (storeSlippage !== "auto") {
+        setSlippageValue("auto");
       }
-    },
-    [
-      /* empty dependency array to run only once */
-    ],
-  );
+    } else {
+      // If anything else, set mode to custom
+      setSlippageMode("custom");
+      setCustomSlippage(storeSlippage.replace("%", ""));
+    }
+
+    // Set initial receive address
+    if (transactionDetails.receiveAddress) {
+      setReceiveAddressInput(transactionDetails.receiveAddress);
+    } else if (activeWallet) {
+      setReceiveAddressInput(activeWallet.address);
+    }
+  }, [
+    activeWallet,
+    setSlippageValue,
+    transactionDetails.receiveAddress,
+    transactionDetails.slippage,
+  ]);
 
   // Handle click outside for receive address editing
   useEffect(() => {

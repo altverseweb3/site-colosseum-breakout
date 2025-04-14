@@ -39,6 +39,7 @@ export async function connectMetamask(): Promise<WalletInfo | null> {
     // Update the store immediately on connection
     const store = useWeb3Store.getState();
     store.addWallet(walletInfo);
+    store.loadTokensForActiveChains();
 
     // Set up account change listener
     window.ethereum.on("accountsChanged", (accounts: unknown) => {
@@ -49,6 +50,7 @@ export async function connectMetamask(): Promise<WalletInfo | null> {
         store.removeWallet(WalletType.METAMASK);
       } else {
         // Account was switched
+        store.loadTokensForActiveChains();
         store.updateWalletAddress(WalletType.METAMASK, newAccounts[0]);
       }
     });
@@ -464,7 +466,6 @@ export function useTokenTransfer(
 
   const isButtonDisabled: boolean = !isValid || isProcessing || isLoadingQuote;
 
-  // Update this useEffect to include slippage in the dependency array
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -544,7 +545,12 @@ export function useTokenTransfer(
           const token =
             options.type === "swap" ? destinationToken! : sourceToken!;
           const decimals = token.decimals || 6;
-
+          if (!minAmountOut) {
+            console.error("No minAmountOut in quotes");
+            toast.error("invalid quote, try increasing input amount.");
+            failQuote();
+            return;
+          }
           const formattedAmount = parseFloat(minAmountOut.toString()).toFixed(
             Math.min(decimals, 6),
           );
@@ -563,7 +569,6 @@ export function useTokenTransfer(
           failQuote();
         }
       } catch (error: unknown) {
-        // Error handling code unchanged...
         // Check if this is still the latest request
         if (currentRequestId !== latestRequestIdRef.current) {
           return; // Ignore errors from stale requests
@@ -623,6 +628,7 @@ export function useTokenTransfer(
     options.type,
     transactionDetails.slippage, // Add slippage to the dependency array
     getSlippageBps,
+    isValid,
   ]);
 
   const handleTransfer = async (): Promise<void> => {
