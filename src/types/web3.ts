@@ -35,6 +35,7 @@ export type Token = {
   chainId: number;
   userBalance?: string;
   userBalanceUsd?: string;
+  priceUsd?: string;
   isWalletToken?: boolean;
 };
 
@@ -84,6 +85,9 @@ export interface Web3StoreState {
     receiveAddress: string | null;
   };
 
+  tokenBalancesByWallet: Record<string, Record<string, string>>; // chainId_walletAddress -> tokenAddress -> balance
+  tokenPricesUsd: Record<string, string>; // chainId_tokenAddress -> USD price
+
   // Wallet actions
   addWallet: (wallet: WalletInfo) => void;
   removeWallet: (walletType: WalletType) => void;
@@ -114,6 +118,14 @@ export interface Web3StoreState {
   // Transaction details actions
   setSlippageValue: (value: "auto" | string) => void;
   setReceiveAddress: (address: string | null) => void;
+
+  updateTokenBalances: (
+    chainId: number,
+    userAddress: string,
+    balances: TokenBalance[],
+  ) => void;
+  updateTokenPrices: (priceResults: TokenPriceResult[]) => void;
+  setTokensLoading: (loading: boolean) => void;
 }
 
 export enum Network {
@@ -203,4 +215,35 @@ export enum Network {
   DEGEN_MAINNET = "degen-mainnet",
   INK_MAINNET = "ink-mainnet",
   INK_SEPOLIA = "ink-sepolia",
+}
+
+export interface TokenBalance {
+  contractAddress: string;
+  tokenBalance: string;
+}
+
+export interface TokenMetadata {
+  name: string;
+  symbol: string;
+  decimals: number;
+  logo?: string;
+  totalSupply?: string;
+}
+
+export interface TokenPrice {
+  currency: string;
+  value: string;
+  lastUpdatedAt: string;
+}
+
+export interface TokenAddressInfo {
+  network: Network;
+  address: string;
+}
+
+export interface TokenPriceResult {
+  network: Network;
+  address: string;
+  prices: TokenPrice[];
+  error: string | null;
 }
