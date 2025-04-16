@@ -85,6 +85,9 @@ export interface Web3StoreState {
     receiveAddress: string | null;
   };
 
+  tokenBalancesByWallet: Record<string, Record<string, string>>; // chainId_walletAddress -> tokenAddress -> balance
+  tokenPricesUsd: Record<string, string>; // chainId_tokenAddress -> USD price
+
   // Wallet actions
   addWallet: (wallet: WalletInfo) => void;
   removeWallet: (walletType: WalletType) => void;
@@ -115,6 +118,14 @@ export interface Web3StoreState {
   // Transaction details actions
   setSlippageValue: (value: "auto" | string) => void;
   setReceiveAddress: (address: string | null) => void;
+
+  updateTokenBalances: (
+    chainId: number,
+    userAddress: string,
+    balances: TokenBalance[],
+  ) => void;
+  updateTokenPrices: (priceResults: TokenPriceResult[]) => void;
+  setTokensLoading: (loading: boolean) => void;
 }
 
 export enum Network {
