@@ -88,6 +88,8 @@ export interface Web3StoreState {
   tokenBalancesByWallet: Record<string, Record<string, string>>; // chainId_walletAddress -> tokenAddress -> balance
   tokenPricesUsd: Record<string, string>; // chainId_tokenAddress -> USD price
 
+  tokenBalancesFullyLoaded: boolean;
+
   // Wallet actions
   addWallet: (wallet: WalletInfo) => void;
   removeWallet: (walletType: WalletType) => void;
@@ -111,8 +113,8 @@ export interface Web3StoreState {
   getWalletTokens: () => Token[];
   getAllTokens: () => Token[];
   getTokensForChain: (chainId: number) => Token[];
-  getTokenById: (compositeKey: string) => Token | undefined;
-  getTokenByAddress: (address: string, chainId: number) => Token | undefined;
+  // getTokenById: (compositeKey: string) => Token | undefined;
+  // getTokenByAddress: (address: string, chainId: number) => Token | undefined;
   findTokenByAddressAnyChain: (address: string) => Token | undefined;
 
   // Transaction details actions
@@ -126,6 +128,7 @@ export interface Web3StoreState {
   ) => void;
   updateTokenPrices: (priceResults: TokenPriceResult[]) => void;
   setTokensLoading: (loading: boolean) => void;
+  setTokensBalancesFullyLoaded: (loaded: boolean) => void;
 }
 
 export enum Network {
