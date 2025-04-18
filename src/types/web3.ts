@@ -108,12 +108,7 @@ export interface Web3StoreState {
 
   // Token data actions
   loadTokens: () => Promise<void>;
-  getWalletTokens: () => Token[];
-  getAllTokens: () => Token[];
   getTokensForChain: (chainId: number) => Token[];
-  getTokenById: (compositeKey: string) => Token | undefined;
-  getTokenByAddress: (address: string, chainId: number) => Token | undefined;
-  findTokenByAddressAnyChain: (address: string) => Token | undefined;
 
   // Transaction details actions
   setSlippageValue: (value: "auto" | string) => void;

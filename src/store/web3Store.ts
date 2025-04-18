@@ -276,47 +276,16 @@ const useWeb3Store = create<Web3StoreState>()(
         }
       },
 
-      getWalletTokens: (): Token[] => {
-        return get().allTokensList.filter((token) => token.isWalletToken);
-      },
-
-      getAllTokens: (): Token[] => {
-        return get().allTokensList.filter((token) => !token.isWalletToken);
-      },
-
       getTokensForChain: (chainId: number): Token[] => {
         return get().tokensByChainId[chainId] || [];
       },
-
-      getTokenById: (compositeKey: string): Token | undefined => {
-        return get().tokensByCompositeKey[compositeKey];
-      },
-
-      getTokenByAddress: (
-        address: string,
-        chainId: number,
-      ): Token | undefined => {
-        const lowerAddress = address.toLowerCase();
-        const chainTokensByAddress = get().tokensByAddress[chainId];
-        return chainTokensByAddress
-          ? chainTokensByAddress[lowerAddress]
-          : undefined;
-      },
-
-      findTokenByAddressAnyChain: (address: string): Token | undefined => {
-        const lowerAddress = address.toLowerCase();
-        return get().allTokensList.find(
-          (token) => token.address.toLowerCase() === lowerAddress,
-        );
-      },
-      // Updated implementation of updateTokenBalances to use the token's priceUsd property
 
       updateTokenBalances: (chainId, userAddress, balances) => {
         const { tokenBalancesByWallet, allTokensList, tokensByCompositeKey } =
           get();
 
         // Create a wallet key for storing balances
-        const walletKey = `${chainId}_${userAddress.toLowerCase()}`;
+        const walletKey = `${chainId}-${userAddress.toLowerCase()}`;
 
         // Get existing balances or create a new record
         const existingBalances = tokenBalancesByWallet[walletKey] || {};
@@ -333,16 +302,9 @@ const useWeb3Store = create<Web3StoreState>()(
           updatedBalances[tokenAddress] = balance.tokenBalance;
 
           // Find token in our collections
-          const compositeKey = `${chainId}_${tokenAddress}`;
+          const compositeKey = `${chainId}-${tokenAddress}`;
           const token = tokensByCompositeKey[compositeKey];
-
           if (token) {
-            // Handle hex balance conversion
-            let numericalBalance = balance.tokenBalance;
-            if (numericalBalance.startsWith("0x")) {
-              numericalBalance = BigInt(numericalBalance).toString();
-            }
-
             // Create updated token with balance info
             const tokenWithBalance: Token = {
               ...token,
@@ -353,12 +315,18 @@ const useWeb3Store = create<Web3StoreState>()(
             // Calculate USD balance if price is available in the token
             if (token.priceUsd) {
               try {
-                const balanceInTokenUnits =
-                  Number(numericalBalance) / Math.pow(10, token.decimals);
-                const price = Number(token.priceUsd);
+                // Convert balance from Wei to token units based on decimals
+                let numericalBalance = balance.tokenBalance;
+                if (numericalBalance.startsWith("0x")) {
+                  numericalBalance = BigInt(numericalBalance).toString();
+                }
+
+                // Convert to actual token amount by dividing by 10^decimals
+
+                // Format with 2 decimal places for currency display
                 tokenWithBalance.userBalanceUsd = (
-                  balanceInTokenUnits * price
-                ).toString();
+                  Number(numericalBalance) * Number(token.priceUsd)
+                ).toFixed(2);
               } catch (e) {
                 console.error("Error calculating USD balance:", e);
               }
@@ -370,7 +338,7 @@ const useWeb3Store = create<Web3StoreState>()(
 
         // Update tokens in our main list
         const newTokensList = allTokensList.map((token) => {
-          const compositeKey = `${token.chainId}_${token.address.toLowerCase()}`;
+          const compositeKey = `${token.chainId}-${token.address.toLowerCase()}`;
           return updatedTokens[compositeKey] || token;
         });
 
@@ -394,13 +362,8 @@ const useWeb3Store = create<Web3StoreState>()(
         });
       },
 
-      // Updated implementation for updateTokenPrices with dollar sign handling
-
-      // Enhanced implementation of updateTokenPrices with detailed debugging
-
       updateTokenPrices: (priceResults) => {
         const { tokenPricesUsd, allTokensList, tokensByCompositeKey } = get();
-
         // Create a copy of current prices
         const updatedPrices = { ...tokenPricesUsd };
 
@@ -427,9 +390,8 @@ const useWeb3Store = create<Web3StoreState>()(
             return;
           }
 
-          const chainId = chain.chainId;
           const tokenAddress = result.address.toLowerCase();
-          const compositeKey = `${chainId}_${tokenAddress}`;
+          const compositeKey = `${chain.chainId}-${tokenAddress}`;
 
           // Find USD price if available
           const usdPrice = result.prices.find(
@@ -453,12 +415,9 @@ const useWeb3Store = create<Web3StoreState>()(
                   if (balance.startsWith("0x")) {
                     balance = BigInt(balance).toString();
                   }
-
-                  const balanceInTokenUnits =
-                    Number(balance) / 10 ** token.decimals;
+                  const balanceInTokenUnits = Number(balance);
                   const price = Number(usdPrice.value);
 
-                  // Store as number string without $ prefix
                   userBalanceUsd = (balanceInTokenUnits * price).toString();
                 } catch (e) {
                   console.error("Error calculating USD balance:", e);
@@ -477,7 +436,7 @@ const useWeb3Store = create<Web3StoreState>()(
 
         // Update tokens in our main list
         const newTokensList = allTokensList.map((token) => {
-          const compositeKey = `${token.chainId}_${token.address.toLowerCase()}`;
+          const compositeKey = `${token.chainId}-${token.address.toLowerCase()}`;
           return updatedTokens[compositeKey] || token;
         });
 
@@ -567,7 +526,7 @@ const updateTokenCollections = (
   tokens.forEach((token) => {
     const chainId = token.chainId;
     const address = token.address.toLowerCase();
-    const compositeKey = `${chainId}_${address}`;
+    const compositeKey = `${chainId}-${address}`;
 
     // Update byCompositeKey
     byCompositeKey[compositeKey] = token;
