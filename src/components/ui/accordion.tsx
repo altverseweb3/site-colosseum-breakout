@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+//this component will be used in the borrowing and lending page
 const Accordion = AccordionPrimitive.Root;
 
 const AccordionItem = React.forwardRef<
