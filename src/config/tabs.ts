@@ -20,7 +20,7 @@ export const TAB_CONFIG: Record<Tab, TabConfig> = {
   },
   borrow: {
     label: "borrow",
-    disabled: false,
+    disabled: true,
     disabledMessage: "Coming soon",
   },
   dashboard: {

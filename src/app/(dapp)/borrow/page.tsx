@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import BorrowLend from "@/components/ui/BorrowLend";
+import BorrowLend from "@/components/ui/SupplyBorrowInterface";
 
 const BorrowLendComponent: React.FC = () => {
   return <BorrowLend />;
