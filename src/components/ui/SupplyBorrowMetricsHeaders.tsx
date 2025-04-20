@@ -6,89 +6,100 @@ const SupplyBorrowMetricsHeaders = ({
   activeTab = "borrow",
   onTabChange = () => {},
 }) => {
+  // First card metrics (networth, net APY, health factor)
   const metricsDataHealth = [
     {
-      label: "networth",
+      label: "Net Worth",
       value: "0.21",
       prefix: "$",
       color: "text-white",
     },
     {
-      label: "net APY",
-      value: "2.07%",
+      label: "Net APY",
+      value: "2.07",
+      suffix: "%",
       color: "text-white",
     },
     {
-      label: "health factor",
-      value: "1.59",
+      label: "Health Factor",
+      value: "100123.59",
       color: "text-amber-500",
+      showButton: true,
+      buttonText: "risk details",
     },
   ];
 
-  const metricsDataMarket = [
+  // Second card metrics (market size, available, borrows)
+  const marketMetrics = [
     {
-      label: "market size",
+      label: "Market Size",
       value: "23.35B",
       prefix: "$",
       color: "text-white",
     },
     {
-      label: "available",
+      label: "Available",
       value: "14.18B",
       prefix: "$",
       color: "text-white",
     },
     {
-      label: "borrows",
+      label: "Borrows",
       value: "8.53B",
       prefix: "$",
       color: "text-white",
     },
   ];
 
+  const handleButtonClick = (metricLabel: string) => {
+    console.log(`Button clicked for ${metricLabel}`);
+    // Add your logic for showing risk details here
+  };
+
   return (
     <div className="w-full pb-6">
-      <div className="flex flex-col gap-4 lg:hidden">
-        <div className="w-full flex flex-col gap-4">
-          <div className="w-full">
-            <MetricsCard
-              metrics={metricsDataHealth}
-              className="w-full max-w-full"
-            />
-          </div>
-          <div className="w-full">
-            <MetricsCard
-              metrics={metricsDataMarket}
-              className="w-full max-w-full"
-            />
-          </div>
+      {/* Mobile and tablet views */}
+      <div className="flex flex-col gap-4 xl:hidden">
+        {/* Supply/Borrow Toggle at the TOP for mobile - full width container */}
+        <div className="w-full">
+          {/* This ensures your SupplyBorrowToggle component is used and fills the width */}
+          <SupplyBorrowToggle
+            activeTab={activeTab}
+            onTabChange={onTabChange}
+            className="w-full"
+          />
         </div>
-        <div className="w-full flex justify-center">
-          <div className="w-full">
-            <SupplyBorrowToggle
-              activeTab={activeTab}
-              onTabChange={onTabChange}
-              className="w-full"
-            />
-          </div>
+
+        {/* Metrics cards stacked vertically with full width */}
+        <div className="w-full">
+          <MetricsCard
+            metrics={metricsDataHealth}
+            onButtonClick={handleButtonClick}
+            className="w-full"
+          />
+        </div>
+        <div className="w-full">
+          <MetricsCard metrics={marketMetrics} className="w-full" />
         </div>
       </div>
-      <div className="hidden lg:flex lg:items-end lg:justify-between gap-4">
-        <div className="flex-shrink-0">
+
+      {/* Desktop view with responsive layout - only show on xl screens */}
+      <div className="hidden xl:flex xl:flex-wrap xl:items-end xl:justify-between gap-4">
+        <div className="flex-shrink-0 order-1 xl:order-1 w-full xl:w-auto mb-4 xl:mb-0">
           <SupplyBorrowToggle activeTab={activeTab} onTabChange={onTabChange} />
         </div>
-        <div className="flex gap-4 justify-end">
-          <div className="w-[254px]">
+
+        {/* Metrics cards with responsive layout */}
+        <div className="flex flex-wrap justify-end gap-4 order-2 xl:order-2 w-full xl:w-auto">
+          <div className="w-full xl:w-auto">
             <MetricsCard
               metrics={metricsDataHealth}
-              className="max-w-[254px]"
+              onButtonClick={handleButtonClick}
+              className="w-full xl:w-auto"
             />
           </div>
-          <div className="w-[254px]">
-            <MetricsCard
-              metrics={metricsDataMarket}
-              className="max-w-[254px]"
-            />
+          <div className="w-full xl:w-auto mt-4 xl:mt-0">
+            <MetricsCard metrics={marketMetrics} className="w-full xl:w-auto" />
           </div>
         </div>
       </div>

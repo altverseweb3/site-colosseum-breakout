@@ -7,60 +7,72 @@ interface Metric {
   color?: string;
   prefix?: string;
   suffix?: string;
+  showButton?: boolean;
+  buttonText?: string;
 }
 
 interface MetricsCardProps {
   metrics: Metric[];
   className?: string;
+  onButtonClick?: (metricLabel: string) => void;
 }
 
-const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, className }) => {
-  const getWidthForLabel = (label: string) => {
-    switch (label) {
-      case "health factor":
-        return "90px";
-      case "market size":
-        return "80px";
-      case "networth":
-        return "65px";
-      case "net APY":
-        return "65px";
-      case "available":
-        return "65px";
-      case "borrows":
-        return "65px";
-      default:
-        return "60px";
-    }
-  };
+const MetricsCard: React.FC<MetricsCardProps> = ({
+  metrics,
+  className,
+  onButtonClick,
+}) => {
+  // Determine whether to use fixed width or responsive width
+  const useFixedWidth =
+    !className || (!className.includes("w-") && !className.includes("max-w-"));
 
   return (
     <Card
-      className={`rounded-[6px] border border-[#232326] bg-transparent text-card-foreground shadow ${className || ""}`}
+      className={`
+                rounded-md border border-[#232326] bg-transparent text-card-foreground shadow
+                ${useFixedWidth ? "w-[350px] h-auto min-h-[64px]" : ""}
+                ${className || ""}
+            `}
     >
-      <CardContent className="pt-[19px] pr-[20px] pb-[19px] pl-[20px]">
-        <div className="flex justify-between">
-          {metrics.map((metric, index) => (
-            <div
-              key={`metric-${index}`}
-              className="flex flex-col"
-              style={{ width: getWidthForLabel(metric.label) }}
-            >
-              <div className="text-[12px] text-[#FFFFFF80] font-[400] font-['Urbanist'] leading-[14px] mb-1 whitespace-nowrap">
-                {metric.label}
-              </div>
-              <div>
-                <span
-                  className={`text-[12px] font-['Urbanist'] font-[400] ${metric.color || "text-white"}`}
-                >
-                  {metric.prefix || ""}
-                  {metric.value}
-                  {metric.suffix || ""}
-                </span>
-              </div>
+      <CardContent className="flex flex-wrap h-full items-center justify-center px-5 py-4">
+        {metrics.map((metric, index) => (
+          <div
+            key={`metric-${index}`}
+            className={`flex flex-col items-center text-center mb-2 md:mb-0 ${index < metrics.length - 1 ? "mr-6 md:mr-10" : ""} ${metric.showButton ? "min-w-[90px]" : "min-w-[70px]"}`}
+          >
+            <div className="mb-1.5 whitespace-nowrap text-[14px] font-[400] font-['Urbanist'] leading-4 text-[#FFFFFF80]">
+              {metric.label}
             </div>
-          ))}
-        </div>
+            <div className="flex items-center">
+              {metric.prefix && (
+                <span className="numeric-input text-base font-medium text-white">
+                  {metric.prefix}
+                </span>
+              )}
+
+              <span
+                className={`numeric-input text-base font-medium ${metric.color || "text-white"}`}
+              >
+                {metric.value}
+              </span>
+
+              {metric.suffix && (
+                <span className="numeric-input text-base font-medium text-white">
+                  {metric.suffix}
+                </span>
+              )}
+
+              {metric.showButton && metric.buttonText && (
+                <button
+                  onClick={() => onButtonClick?.(metric.label)}
+                  className="ml-2 rounded bg-[#232326] px-2 py-[2px] text-xs text-[#FFFFFF80] font-['Urbanist'] leading-none whitespace-nowrap hover:bg-[#2a2a2e]"
+                >
+                  {metric.buttonText}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
