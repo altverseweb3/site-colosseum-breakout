@@ -6,8 +6,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/Accordion";
-import PoweredByAave from "./PoweredByAave";
-import SupplyBorrowMetricsHeaders from "./SupplyBorrowMetricsHeaders";
+import PoweredByAave from "@/components/ui/PoweredByAave";
+import SupplyBorrowMetricsHeaders from "@/components/ui/SupplyBorrowMetricsHeaders";
 
 const BorrowLend: React.FC = () => {
   return (

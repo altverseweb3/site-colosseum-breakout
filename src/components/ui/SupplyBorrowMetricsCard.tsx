@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardContent } from "./Card";
+import { Card, CardContent } from "@/components/ui/Card";
 
 interface Metric {
   label: string;

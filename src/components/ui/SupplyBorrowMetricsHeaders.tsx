@@ -1,6 +1,6 @@
 import React from "react";
-import MetricsCard from "./SupplyBorrowMetricsCard";
-import SupplyBorrowToggle from "./SupplyBorrowToggle";
+import MetricsCard from "@/components/ui/SupplyBorrowMetricsCard";
+import SupplyBorrowToggle from "@/components/ui//SupplyBorrowToggle";
 
 const SupplyBorrowMetricsHeaders = ({
   activeTab = "borrow",
