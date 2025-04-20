@@ -1,20 +1,24 @@
-import { SetStateAction, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 
 interface SupplyBorrowToggleProps {
   activeTab?: string;
-  onTabChange?: (button: SetStateAction<string>) => void;
+  onTabChange?: (button: string) => void;
   className?: string;
+  showSupplyData?: React.ReactNode;
+  showBorrowData?: React.ReactNode;
 }
 
 const SupplyBorrowToggle = ({
   activeTab = "borrow",
   onTabChange = () => {},
   className = "",
+  showSupplyData,
+  showBorrowData,
 }: SupplyBorrowToggleProps) => {
   const [activeButton, setActiveButton] = useState(activeTab);
 
-  const handleClick = (button: SetStateAction<string>) => {
+  const handleClick = (button: string) => {
     setActiveButton(button);
     onTabChange(button);
   };
@@ -29,20 +33,31 @@ const SupplyBorrowToggle = ({
   const inactiveStyle =
     "bg-[#27272ABF] hover:bg-[#323232] text-[#52525B] border-[#27272A]";
 
+  // Determine which component to display based on active button
+  const activeComponent =
+    activeButton === "supply" ? showSupplyData : showBorrowData;
+
   return (
-    <div className={`flex flex-col sm:flex-row p-1 w-full gap-2 ${className}`}>
-      <Button
-        className={`${commonButtonClasses} ${activeButton === "supply" ? activeStyle : inactiveStyle}`}
-        onClick={() => handleClick("supply")}
+    <div className="w-full">
+      <div
+        className={`flex flex-col sm:flex-row p-1 w-full gap-2 ${className} mb-4`}
       >
-        supply
-      </Button>
-      <Button
-        className={`${commonButtonClasses} ${activeButton === "borrow" ? activeStyle : inactiveStyle}`}
-        onClick={() => handleClick("borrow")}
-      >
-        borrow
-      </Button>
+        <Button
+          className={`${commonButtonClasses} ${activeButton === "supply" ? activeStyle : inactiveStyle}`}
+          onClick={() => handleClick("supply")}
+        >
+          supply
+        </Button>
+        <Button
+          className={`${commonButtonClasses} ${activeButton === "borrow" ? activeStyle : inactiveStyle}`}
+          onClick={() => handleClick("borrow")}
+        >
+          borrow
+        </Button>
+      </div>
+
+      {/* Render the active component */}
+      {activeComponent && <div className="w-full">{activeComponent}</div>}
     </div>
   );
 };

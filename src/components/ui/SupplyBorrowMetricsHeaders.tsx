@@ -1,10 +1,15 @@
 import React from "react";
 import MetricsCard from "@/components/ui/SupplyBorrowMetricsCard";
-import SupplyBorrowToggle from "@/components/ui//SupplyBorrowToggle";
+import SupplyBorrowToggle from "@/components/ui/SupplyBorrowToggle";
 
-const SupplyBorrowMetricsHeaders = ({
-  activeTab = "borrow",
-  onTabChange = () => {},
+interface SupplyBorrowMetricsHeadersProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
+const SupplyBorrowMetricsHeaders: React.FC<SupplyBorrowMetricsHeadersProps> = ({
+  activeTab,
+  onTabChange,
 }) => {
   // First card metrics (networth, net APY, health factor)
   const metricsDataHealth = [
@@ -22,7 +27,7 @@ const SupplyBorrowMetricsHeaders = ({
     },
     {
       label: "Health Factor",
-      value: "100123.59",
+      value: "1.59",
       color: "text-amber-500",
       showButton: true,
       buttonText: "risk details",
@@ -51,7 +56,7 @@ const SupplyBorrowMetricsHeaders = ({
     },
   ];
 
-  const handleButtonClick = (metricLabel: string) => {
+  const handleButtonClick = (metricLabel: string): void => {
     console.log(`Button clicked for ${metricLabel}`);
     // Add your logic for showing risk details here
   };
@@ -60,9 +65,8 @@ const SupplyBorrowMetricsHeaders = ({
     <div className="w-full pb-6">
       {/* Mobile and tablet views */}
       <div className="flex flex-col gap-4 xl:hidden">
-        {/* Supply/Borrow Toggle at the TOP for mobile - full width container */}
+        {/* Supply/Borrow Toggle */}
         <div className="w-full">
-          {/* This ensures your SupplyBorrowToggle component is used and fills the width */}
           <SupplyBorrowToggle
             activeTab={activeTab}
             onTabChange={onTabChange}
@@ -84,22 +88,30 @@ const SupplyBorrowMetricsHeaders = ({
       </div>
 
       {/* Desktop view with responsive layout - only show on xl screens */}
-      <div className="hidden xl:flex xl:flex-wrap xl:items-end xl:justify-between gap-4">
-        <div className="flex-shrink-0 order-1 xl:order-1 w-full xl:w-auto mb-4 xl:mb-0">
-          <SupplyBorrowToggle activeTab={activeTab} onTabChange={onTabChange} />
-        </div>
-
-        {/* Metrics cards with responsive layout */}
-        <div className="flex flex-wrap justify-end gap-4 order-2 xl:order-2 w-full xl:w-auto">
-          <div className="w-full xl:w-auto">
-            <MetricsCard
-              metrics={metricsDataHealth}
-              onButtonClick={handleButtonClick}
-              className="w-full xl:w-auto"
+      <div className="hidden xl:block">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex-shrink-0 w-full xl:w-auto">
+            <SupplyBorrowToggle
+              activeTab={activeTab}
+              onTabChange={onTabChange}
             />
           </div>
-          <div className="w-full xl:w-auto mt-4 xl:mt-0">
-            <MetricsCard metrics={marketMetrics} className="w-full xl:w-auto" />
+
+          {/* Metrics cards with responsive layout */}
+          <div className="flex flex-wrap justify-end gap-4 w-full xl:w-auto">
+            <div className="w-full xl:w-auto">
+              <MetricsCard
+                metrics={metricsDataHealth}
+                onButtonClick={handleButtonClick}
+                className="w-full xl:w-auto"
+              />
+            </div>
+            <div className="w-full xl:w-auto">
+              <MetricsCard
+                metrics={marketMetrics}
+                className="w-full xl:w-auto"
+              />
+            </div>
           </div>
         </div>
       </div>
