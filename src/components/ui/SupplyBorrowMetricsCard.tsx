@@ -30,20 +30,27 @@ const MetricsCard: React.FC<MetricsCardProps> = ({
     <Card
       className={`
                 rounded-md border border-[#232326] bg-transparent text-card-foreground shadow
-                ${useFixedWidth ? "w-[350px] h-auto min-h-[64px]" : ""}
+                ${useFixedWidth ? "w-full md:w-auto max-w-full md:min-w-[500px] h-auto min-h-[64px]" : ""}
                 ${className || ""}
             `}
     >
-      <CardContent className="flex flex-wrap h-full items-center justify-center px-5 py-4">
+      <CardContent className="flex flex-wrap px-5 py-4">
         {metrics.map((metric, index) => (
           <div
             key={`metric-${index}`}
-            className={`flex flex-col items-center text-center mb-2 md:mb-0 ${index < metrics.length - 1 ? "mr-6 md:mr-10" : ""} ${metric.showButton ? "min-w-[90px]" : "min-w-[70px]"}`}
+            className={`
+              flex flex-col items-center text-center
+              ${metrics.length <= 3 ? "flex-1 md:px-4" : "w-1/2 mb-4 md:px-2"}
+              ${metrics.length === 2 ? "w-1/2 md:px-6" : ""}
+            `}
           >
-            <div className="mb-1.5 whitespace-nowrap text-[14px] font-[400] font-['Urbanist'] leading-4 text-[#FFFFFF80]">
+            {/* Label with consistent height */}
+            <div className="h-5 mb-1.5 whitespace-nowrap text-[14px] font-[400] font-['Urbanist'] leading-4 text-[#FFFFFF80]">
               {metric.label}
             </div>
-            <div className="flex items-center">
+
+            {/* Value container with consistent alignment */}
+            <div className="flex items-center justify-center h-6 whitespace-nowrap">
               {metric.prefix && (
                 <span className="numeric-input text-base font-medium text-white">
                   {metric.prefix}
@@ -57,11 +64,12 @@ const MetricsCard: React.FC<MetricsCardProps> = ({
               </span>
 
               {metric.suffix && (
-                <span className="numeric-input text-base font-medium text-white">
+                <span className="numeric-input text-base font-medium text-white ml-0.5">
                   {metric.suffix}
                 </span>
               )}
 
+              {/* Button inline with the value */}
               {metric.showButton && metric.buttonText && (
                 <button
                   onClick={() => onButtonClick?.(metric.label)}
