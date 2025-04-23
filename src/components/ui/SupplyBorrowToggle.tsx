@@ -25,7 +25,7 @@ const SupplyBorrowToggle = ({
 
   // Common button classes extracted to avoid repetition
   const commonButtonClasses =
-    "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background py-2 px-8 border border-solid rounded-lg text-sm h-10 w-full sm:flex-1 min-w-[150px]";
+    "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background py-1 px-8 border border-solid rounded-lg text-sm h-6 w-full sm:flex-1 min-w-[150px]";
 
   // Active and inactive style classes
   const activeStyle =
@@ -40,7 +40,7 @@ const SupplyBorrowToggle = ({
   return (
     <div className="w-full">
       <div
-        className={`flex flex-col sm:flex-row p-1 w-full gap-2 ${className} mb-4`}
+        className={`flex flex-col sm:flex-row p-1 w-full gap-2 ${className}`}
       >
         <Button
           className={`${commonButtonClasses} ${activeButton === "supply" ? activeStyle : inactiveStyle}`}

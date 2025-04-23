@@ -62,7 +62,7 @@ const SupplyBorrowMetricsHeaders: React.FC<SupplyBorrowMetricsHeadersProps> = ({
   };
 
   return (
-    <div className="w-full pb-6">
+    <div className="w-full pb-4">
       {/* Mobile and tablet views */}
       <div className="flex flex-col gap-4 xl:hidden">
         {/* Supply/Borrow Toggle */}
