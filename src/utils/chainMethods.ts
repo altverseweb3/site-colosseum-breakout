@@ -15,18 +15,12 @@ export function handleChainChange(
   const store = useWeb3Store.getState();
   const isSource = type === "source";
 
-  // Get current chains
-  const sourceChain = store.sourceChain;
-  const destinationChain = store.destinationChain;
-
   // Get the appropriate setters
   const setSourceChain = store.setSourceChain;
   const setDestinationChain = store.setDestinationChain;
 
   // Determine which chains we're working with
-  const oppositeChain = isSource ? destinationChain : sourceChain;
   const setCurrentChain = isSource ? setSourceChain : setDestinationChain;
-  const setOppositeChain = isSource ? setDestinationChain : setSourceChain;
 
   // Log the change
   console.log(
@@ -36,14 +30,6 @@ export function handleChainChange(
 
   // Update the current chain
   setCurrentChain(chain);
-
-  // If same chain selected, find a different one for the opposite side
-  if (chain.id === oppositeChain.id) {
-    const differentChain = Object.values(chains).find((c) => c.id !== chain.id);
-    if (differentChain) {
-      setOppositeChain(differentChain);
-    }
-  }
 }
 
 /**

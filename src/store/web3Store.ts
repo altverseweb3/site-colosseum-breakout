@@ -161,10 +161,7 @@ const useWeb3Store = create<Web3StoreState>()(
       setSourceChain: (chain: Chain) => {
         set((state) => ({
           sourceChain: chain,
-          destinationChain:
-            state.destinationChain.id === chain.id
-              ? state.sourceChain
-              : state.destinationChain,
+          destinationChain: state.destinationChain,
           // Reset source token when changing chains
           sourceToken: null,
         }));

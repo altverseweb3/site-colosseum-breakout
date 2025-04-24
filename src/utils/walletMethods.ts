@@ -645,43 +645,66 @@ export function useTokenTransfer(
           // Extract token prices and calculate USD values
           // Source token price from the price field
           if (quote.price !== undefined) {
+            // Source token price is always from the price field
             setSourceTokenPrice(quote.price);
-            console.log(`Source token price: $${quote.price}`);
+            console.log(`Source token price: ${quote.price}`);
 
             // Calculate USD value of source amount
             if (!isNaN(inputAmount)) {
               const sourceAmountUsdValue = inputAmount * quote.price;
               setSourceAmountUsd(parseFloat(sourceAmountUsdValue.toFixed(2)));
               console.log(
-                `Source amount in USD: $${sourceAmountUsdValue.toFixed(2)}`,
+                `Source amount in USD: ${sourceAmountUsdValue.toFixed(2)}`,
               );
             } else {
               setSourceAmountUsd(null);
             }
-          } else {
-            setSourceTokenPrice(null);
-            setSourceAmountUsd(null);
-          }
 
-          // Destination token price from toTokenPrice field (using ExtendedQuote)
-          if (quote.toTokenPrice !== undefined) {
-            setDestinationTokenPrice(quote.toTokenPrice);
-            console.log(`Destination token price: $${quote.toTokenPrice}`);
+            // For destination token price, check if same chain or if toTokenPrice exists
+            const isSameChain = quote.fromChain === quote.toChain;
 
-            // Calculate USD value of destination amount
-            if (!isNaN(outputAmount)) {
-              const destinationAmountUsdValue =
-                outputAmount * quote.toTokenPrice;
-              setDestinationAmountUsd(
-                parseFloat(destinationAmountUsdValue.toFixed(2)),
-              );
+            if (isSameChain || quote.toTokenPrice === undefined) {
+              // If same chain or toTokenPrice missing, use quote.price for destination token too
+              setDestinationTokenPrice(quote.price);
               console.log(
-                `Destination amount in USD: $${destinationAmountUsdValue.toFixed(2)}`,
+                `Destination token price (using source price): ${quote.price}`,
               );
+
+              // Calculate USD value of destination amount using the same price
+              if (!isNaN(outputAmount)) {
+                const destinationAmountUsdValue = outputAmount * quote.price;
+                setDestinationAmountUsd(
+                  parseFloat(destinationAmountUsdValue.toFixed(2)),
+                );
+                console.log(
+                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
+                );
+              } else {
+                setDestinationAmountUsd(null);
+              }
             } else {
-              setDestinationAmountUsd(null);
+              // Different chains and toTokenPrice exists, use toTokenPrice for destination
+              setDestinationTokenPrice(quote.toTokenPrice);
+              console.log(`Destination token price: ${quote.toTokenPrice}`);
+
+              // Calculate USD value of destination amount
+              if (!isNaN(outputAmount)) {
+                const destinationAmountUsdValue =
+                  outputAmount * quote.toTokenPrice;
+                setDestinationAmountUsd(
+                  parseFloat(destinationAmountUsdValue.toFixed(2)),
+                );
+                console.log(
+                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
+                );
+              } else {
+                setDestinationAmountUsd(null);
+              }
             }
           } else {
+            // No price information available
+            setSourceTokenPrice(null);
+            setSourceAmountUsd(null);
             setDestinationTokenPrice(null);
             setDestinationAmountUsd(null);
           }
