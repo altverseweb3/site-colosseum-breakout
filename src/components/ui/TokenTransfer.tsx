@@ -7,6 +7,7 @@ import { TokenSwitch } from "@/components/ui/TokenSwitch";
 import { ConnectWalletModal } from "@/components/ui/ConnectWalletModal";
 import { BrandedButton } from "@/components/ui/BrandedButton";
 import { AvailableIconName } from "@/types/ui";
+import useWeb3State from "@/store/web3Store";
 
 interface TokenTransferProps {
   amount: string;
@@ -58,6 +59,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   // State to track if the input should be enabled
   const [isInputEnabled, setIsInputEnabled] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const swapChains = useWeb3State((state) => state.swapChains);
 
   useEffect(() => {
     const shouldBeEnabled =
@@ -134,7 +136,11 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
         />
       </AssetBox>
 
-      <TokenSwitch />
+      <TokenSwitch
+        onClick={() => {
+          swapChains();
+        }}
+      />
 
       <AssetBox
         title="receive"
