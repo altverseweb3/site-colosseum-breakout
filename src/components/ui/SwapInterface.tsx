@@ -16,11 +16,10 @@ interface SwapInterfaceProps {
     disabled?: boolean;
   };
   className?: string;
-  // Transaction details props
-  exchangeRate?: string;
-  exchangeValue?: string;
-  gasFee?: string;
-  estimatedTime?: string | number | null; // Allow null for estimated time
+  protocolFeeUsd?: number;
+  relayerFeeUsd?: number;
+  totalFeeUsd?: number;
+  estimatedTime?: number | null; // Allow null for estimated time
   enforceSourceChain?: boolean;
   renderActionButton?: () => ReactNode;
   detailsOpen?: boolean;
@@ -31,9 +30,9 @@ export function SwapInterface({
   children,
   actionButton,
   className = "",
-  exchangeRate,
-  exchangeValue,
-  gasFee,
+  protocolFeeUsd,
+  relayerFeeUsd,
+  totalFeeUsd,
   estimatedTime,
   enforceSourceChain = true,
   renderActionButton,
@@ -189,9 +188,9 @@ export function SwapInterface({
         </div>
 
         <TransactionDetails
-          exchangeRate={exchangeRate}
-          exchangeValue={exchangeValue}
-          gasFee={gasFee}
+          protocolFeeUsd={protocolFeeUsd}
+          relayerFeeUsd={relayerFeeUsd}
+          totalFeeUsd={totalFeeUsd}
           estimatedTime={estimatedTime} // Pass number or string
           isOpen={detailsOpen}
           onToggle={onDetailsToggle}

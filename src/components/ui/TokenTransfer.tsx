@@ -23,14 +23,13 @@ interface TokenTransferProps {
   settingsComponent?: ReactNode;
   receiveAmount?: string;
   isLoadingQuote?: boolean;
-  // Transaction details props
-  exchangeRate?: string;
-  exchangeValue?: string;
-  gasFee?: string;
   estimatedTimeSeconds?: number | null;
   // Token selection state
   hasSourceToken?: boolean;
   hasDestinationToken?: boolean;
+  protocolFeeUsd?: number;
+  relayerFeeUsd?: number;
+  totalFeeUsd?: number;
 }
 
 export const TokenTransfer: React.FC<TokenTransferProps> = ({
@@ -47,14 +46,13 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   settingsComponent,
   receiveAmount = "",
   isLoadingQuote = false,
-  // Transaction details props
-  exchangeRate = "1 USDC = 0.000362352 ETH",
-  exchangeValue = "$1.00",
-  gasFee = "<$0.01",
   estimatedTimeSeconds = null,
   // Token selection state
   hasSourceToken = false,
   hasDestinationToken = false,
+  protocolFeeUsd = 0,
+  relayerFeeUsd = 0,
+  totalFeeUsd = 0,
 }) => {
   // State to track if the input should be enabled
   const [isInputEnabled, setIsInputEnabled] = useState(false);
@@ -168,11 +166,10 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
           actionButton={actionButton}
           enforceSourceChain={hasActiveWallet}
           renderActionButton={renderButtonOrModal}
-          // Pass transaction details props to SwapInterface
-          exchangeRate={exchangeRate}
-          exchangeValue={exchangeValue}
-          gasFee={gasFee}
           estimatedTime={estimatedTimeSeconds} // Pass the ETA from quote
+          protocolFeeUsd={protocolFeeUsd}
+          relayerFeeUsd={relayerFeeUsd}
+          totalFeeUsd={totalFeeUsd}
           detailsOpen={showDetails}
           onDetailsToggle={() => setShowDetails(!showDetails)}
         >

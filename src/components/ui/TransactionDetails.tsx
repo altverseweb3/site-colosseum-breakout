@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Fuel,
   Clock,
   ChevronDown,
   ChevronUp,
@@ -15,9 +14,9 @@ import useWeb3Store, {
 } from "@/store/web3Store";
 
 interface TransactionDetailsProps {
-  exchangeRate?: string;
-  exchangeValue?: string;
-  gasFee?: string;
+  protocolFeeUsd?: number;
+  relayerFeeUsd?: number;
+  totalFeeUsd?: number;
   estimatedTime?: string | number | null; // Allow number for seconds or null
   className?: string;
   isOpen?: boolean;
@@ -25,9 +24,7 @@ interface TransactionDetailsProps {
 }
 
 export function TransactionDetails({
-  exchangeRate = "1 USDC = 0.000362352 ETH",
-  exchangeValue = "$1.00",
-  gasFee = "<$0.01",
+  totalFeeUsd = 0,
   estimatedTime = "~",
   isOpen,
   onToggle,
@@ -267,13 +264,9 @@ export function TransactionDetails({
         onClick={toggleDetails}
       >
         <div className="text-left">
-          {exchangeRate} ({exchangeValue})
+          {!isDetailsExpanded ? "expand for details" : "transaction details"}
         </div>
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1">
-            <Fuel size={14} />
-            <span>{gasFee}</span>
-          </div>
           <div className="flex items-center space-x-1">
             <Clock size={14} />
             <span>{formatEstimatedTime(estimatedTime)}</span>
@@ -350,16 +343,15 @@ export function TransactionDetails({
             </div>
 
             <div className="text-left text-zinc-400">fee</div>
-            <div className="text-right numeric-input text-zinc-200">$5.29</div>
-
-            <div className="text-left text-zinc-400">relayer fees</div>
-            <div className="text-right numeric-input text-zinc-200">$1.87</div>
+            <div className="text-right numeric-input text-zinc-200">
+              ${(Math.round(totalFeeUsd * 100) / 100).toFixed(2)}
+            </div>
           </div>
 
           <div className="mt-2">
             <div className="flex items-center justify-between">
-              <div className="text-left text-amber-500 text-[12px]">
-                receiving
+              <div className="text-left text-amber-500 text-[12px] w-[100px]">
+                receiving addr.
               </div>
 
               {isEditingReceiveAddress ? (
