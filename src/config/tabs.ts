@@ -10,16 +10,13 @@ export const TAB_CONFIG: Record<Tab, TabConfig> = {
   swap: {
     label: "swap",
   },
-  bridge: {
-    label: "bridge",
-  },
-  stake: {
-    label: "stake",
+  earn: {
+    label: "earn",
     disabled: true,
     disabledMessage: "Coming soon",
   },
-  borrow: {
-    label: "borrow",
+  lending: {
+    label: "lending",
     disabled: true,
     disabledMessage: "Coming soon",
   },
