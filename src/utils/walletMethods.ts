@@ -408,7 +408,18 @@ interface TokenTransferState {
   relayerFeeUsd: number | null;
   totalFeeUsd: number | null;
 
+  sourceTokenPrice: number | null;
+  destinationTokenPrice: number | null;
+
+  sourceAmountUsd: number | null; // USD value of input amount
+  destinationAmountUsd: number | null; // USD value of output amount
+
   handleTransfer: () => Promise<void>;
+}
+
+// I had to include this as it appears the Mayan SDK is outdated
+interface ExtendedQuote extends Quote {
+  toTokenPrice?: number;
 }
 
 /**
@@ -433,6 +444,15 @@ export function useTokenTransfer(
   const [relayerFeeUsd, setRelayerFeeUsd] = useState<number | null>(null);
   const [totalFeeUsd, setTotalFeeUsd] = useState<number | null>(null);
 
+  const [sourceTokenPrice, setSourceTokenPrice] = useState<number | null>(null);
+  const [destinationTokenPrice, setDestinationTokenPrice] = useState<
+    number | null
+  >(null);
+  const [sourceAmountUsd, setSourceAmountUsd] = useState<number | null>(null);
+  const [destinationAmountUsd, setDestinationAmountUsd] = useState<
+    number | null
+  >(null);
+
   // Get relevant state from the web3 store
   const activeWallet = useWeb3Store((state) => state.activeWallet);
   const sourceChain = useWeb3Store((state) => state.sourceChain);
@@ -454,6 +474,10 @@ export function useTokenTransfer(
     setProtocolFeeUsd(null);
     setRelayerFeeUsd(null);
     setTotalFeeUsd(null);
+    setSourceTokenPrice(null);
+    setDestinationTokenPrice(null);
+    setSourceAmountUsd(null);
+    setDestinationAmountUsd(null);
   };
 
   // Convert slippage from string (e.g., "3.00%") to basis points (e.g., 300) or "auto"
@@ -555,8 +579,11 @@ export function useTokenTransfer(
         setQuoteData(quotes);
 
         if (quotes && quotes.length > 0) {
-          const quote = quotes[0];
+          // Cast the quote to ExtendedQuote to access additional properties
+          const quote = quotes[0] as ExtendedQuote;
           const expectedAmountOut = quote.expectedAmountOut;
+          const inputAmount = parseFloat(amount);
+          const outputAmount = expectedAmountOut;
 
           // Extract ETA seconds if available
           if (quote.etaSeconds !== undefined) {
@@ -572,7 +599,6 @@ export function useTokenTransfer(
             setProtocolFeeBps(quote.protocolBps);
 
             // Calculate protocol fee in USD
-            const inputAmount = parseFloat(amount);
             const protocolFeeUsdValue =
               inputAmount * (quote.protocolBps / 10000);
             setProtocolFeeUsd(parseFloat(protocolFeeUsdValue.toFixed(6)));
@@ -607,8 +633,6 @@ export function useTokenTransfer(
           }
 
           // Calculate total fee - the difference between input and expected output
-          const inputAmount = parseFloat(amount);
-          const outputAmount = quote.expectedAmountOut;
           const totalFee = inputAmount - outputAmount;
 
           if (!isNaN(totalFee)) {
@@ -616,6 +640,50 @@ export function useTokenTransfer(
             console.log(`Total fee: ${totalFee.toFixed(6)} USD`);
           } else {
             setTotalFeeUsd(null);
+          }
+
+          // Extract token prices and calculate USD values
+          // Source token price from the price field
+          if (quote.price !== undefined) {
+            setSourceTokenPrice(quote.price);
+            console.log(`Source token price: $${quote.price}`);
+
+            // Calculate USD value of source amount
+            if (!isNaN(inputAmount)) {
+              const sourceAmountUsdValue = inputAmount * quote.price;
+              setSourceAmountUsd(parseFloat(sourceAmountUsdValue.toFixed(2)));
+              console.log(
+                `Source amount in USD: $${sourceAmountUsdValue.toFixed(2)}`,
+              );
+            } else {
+              setSourceAmountUsd(null);
+            }
+          } else {
+            setSourceTokenPrice(null);
+            setSourceAmountUsd(null);
+          }
+
+          // Destination token price from toTokenPrice field (using ExtendedQuote)
+          if (quote.toTokenPrice !== undefined) {
+            setDestinationTokenPrice(quote.toTokenPrice);
+            console.log(`Destination token price: $${quote.toTokenPrice}`);
+
+            // Calculate USD value of destination amount
+            if (!isNaN(outputAmount)) {
+              const destinationAmountUsdValue =
+                outputAmount * quote.toTokenPrice;
+              setDestinationAmountUsd(
+                parseFloat(destinationAmountUsdValue.toFixed(2)),
+              );
+              console.log(
+                `Destination amount in USD: $${destinationAmountUsdValue.toFixed(2)}`,
+              );
+            } else {
+              setDestinationAmountUsd(null);
+            }
+          } else {
+            setDestinationTokenPrice(null);
+            setDestinationAmountUsd(null);
           }
 
           // For bridging, we use the source token's decimals
@@ -639,6 +707,10 @@ export function useTokenTransfer(
             protocolBps: quote.protocolBps,
             relayerFee: relayerFee,
             totalFee: totalFee,
+            sourceTokenPrice: sourceTokenPrice,
+            destinationTokenPrice: destinationTokenPrice,
+            sourceAmountUsd: sourceAmountUsd,
+            destinationAmountUsd: destinationAmountUsd,
           });
         } else {
           failQuote();
@@ -830,6 +902,10 @@ export function useTokenTransfer(
     protocolFeeUsd,
     relayerFeeUsd,
     totalFeeUsd,
+    sourceTokenPrice,
+    destinationTokenPrice,
+    sourceAmountUsd,
+    destinationAmountUsd,
 
     // Actions
     handleTransfer,

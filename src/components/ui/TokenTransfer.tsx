@@ -30,6 +30,8 @@ interface TokenTransferProps {
   protocolFeeUsd?: number;
   relayerFeeUsd?: number;
   totalFeeUsd?: number;
+  sourceAmountUsd?: number;
+  destinationAmountUsd?: number;
 }
 
 export const TokenTransfer: React.FC<TokenTransferProps> = ({
@@ -53,6 +55,8 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   protocolFeeUsd = 0,
   relayerFeeUsd = 0,
   totalFeeUsd = 0,
+  sourceAmountUsd = 0,
+  destinationAmountUsd = 0,
 }) => {
   // State to track if the input should be enabled
   const [isInputEnabled, setIsInputEnabled] = useState(false);
@@ -131,6 +135,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
           onChange={onAmountChange}
           showSelectToken={true}
           isEnabled={isInputEnabled}
+          dollarValue={sourceAmountUsd}
         />
       </AssetBox>
 
@@ -152,6 +157,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
           readOnly={true}
           showSelectToken={showDestinationTokenSelector}
           isLoadingQuote={isLoadingQuote}
+          dollarValue={destinationAmountUsd}
         />
       </AssetBox>
     </>

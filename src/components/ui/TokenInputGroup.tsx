@@ -7,7 +7,7 @@ interface TokenInputGroupProps {
   amount: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   showSelectToken: boolean;
-  dollarValue?: string;
+  dollarValue?: number;
   readOnly?: boolean;
   isLoadingQuote?: boolean;
   isEnabled?: boolean; // New prop to control if input is enabled
@@ -18,7 +18,7 @@ export function TokenInputGroup({
   amount,
   onChange,
   showSelectToken,
-  dollarValue = "$0.00",
+  dollarValue = 0,
   readOnly = false,
   isLoadingQuote = false,
   isEnabled = true, // Default to true

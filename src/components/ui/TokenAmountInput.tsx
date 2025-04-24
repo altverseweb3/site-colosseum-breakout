@@ -4,7 +4,7 @@ import { NumberTicker } from "@/components/ui/NumberTicker";
 interface TokenAmountInputProps {
   amount: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  dollarValue?: string;
+  dollarValue?: number;
   readOnly?: boolean;
   placeholder?: string;
   isLoadingQuote?: boolean;
@@ -14,7 +14,7 @@ interface TokenAmountInputProps {
 export function TokenAmountInput({
   amount,
   onChange,
-  dollarValue = "$0.00",
+  dollarValue = 0,
   readOnly = false,
   placeholder = "0",
   isLoadingQuote = false,
@@ -56,7 +56,9 @@ export function TokenAmountInput({
           disabled={readOnly}
         />
       )}
-      <span className="text-zinc-400 text-sm numeric-input">{dollarValue}</span>
+      <span className="text-zinc-400 text-sm numeric-input">
+        ${(Math.round(dollarValue * 100) / 100).toFixed(2)}
+      </span>
     </div>
   );
 }
