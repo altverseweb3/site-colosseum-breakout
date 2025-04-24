@@ -7,7 +7,7 @@ import { TokenSwitch } from "@/components/ui/TokenSwitch";
 import { ConnectWalletModal } from "@/components/ui/ConnectWalletModal";
 import { BrandedButton } from "@/components/ui/BrandedButton";
 import { AvailableIconName } from "@/types/ui";
-import useWeb3State from "@/store/web3Store";
+import useWeb3Store from "@/store/web3Store";
 
 interface TokenTransferProps {
   amount: string;
@@ -61,7 +61,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   // State to track if the input should be enabled
   const [isInputEnabled, setIsInputEnabled] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const swapChains = useWeb3State((state) => state.swapChains);
+  const swapChains = useWeb3Store((state) => state.swapChains);
 
   useEffect(() => {
     const shouldBeEnabled =
@@ -89,9 +89,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
 
   const iconName = hasActiveWallet ? actionIcon || defaultIconName : "Wallet";
 
-  // Make sure button is disabled during quote loading
-  const calculatedIsDisabled =
-    isButtonDisabled ?? (isLoadingQuote || !amount || amount === "0");
+  const calculatedIsDisabled = isButtonDisabled ?? (!amount || amount === "0");
 
   const actionButton = hasActiveWallet
     ? {
@@ -172,12 +170,13 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
           actionButton={actionButton}
           enforceSourceChain={hasActiveWallet}
           renderActionButton={renderButtonOrModal}
-          estimatedTime={estimatedTimeSeconds} // Pass the ETA from quote
+          estimatedTime={estimatedTimeSeconds}
           protocolFeeUsd={protocolFeeUsd}
           relayerFeeUsd={relayerFeeUsd}
           totalFeeUsd={totalFeeUsd}
           detailsOpen={showDetails}
           onDetailsToggle={() => setShowDetails(!showDetails)}
+          isLoadingQuote={isLoadingQuote} // Pass the loading state to SwapInterface
         >
           {transferContent}
         </SwapInterface>

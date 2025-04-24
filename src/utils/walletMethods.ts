@@ -437,6 +437,7 @@ export function useTokenTransfer(
   const [estimatedTimeSeconds, setEstimatedTimeSeconds] = useState<
     number | null
   >(null);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   // Add state for fee information
   const [protocolFeeBps, setProtocolFeeBps] = useState<number | null>(null);
@@ -511,7 +512,7 @@ export function useTokenTransfer(
   const isValid: boolean =
     options.type === "swap" ? isValidForSwap : isValidForBridge;
 
-  const isButtonDisabled: boolean = !isValid || isProcessing || isLoadingQuote;
+  const isButtonDisabled: boolean = !isValid || isProcessing;
 
   // Update this useEffect to include fee calculation
   useEffect(() => {
@@ -799,7 +800,28 @@ export function useTokenTransfer(
     options.type,
     transactionDetails.slippage,
     getSlippageBps,
+    refreshTrigger,
   ]);
+
+  useEffect(() => {
+    // Only set up interval if everything is valid
+    if (!isValid) return;
+
+    console.log("Setting up quote refresh interval");
+
+    const intervalId = setInterval(() => {
+      // Skip if already loading or processing
+      if (isLoadingQuote || isProcessing) return;
+
+      console.log("Refreshing quote (5-second interval)");
+      setRefreshTrigger((prev) => prev + 1);
+    }, 5000);
+
+    return () => {
+      console.log("Cleaning up quote refresh interval");
+      clearInterval(intervalId);
+    };
+  }, [isValid, isLoadingQuote, isProcessing]);
 
   const handleTransfer = async (): Promise<void> => {
     if (!isValid) {

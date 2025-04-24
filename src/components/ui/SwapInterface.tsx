@@ -24,6 +24,7 @@ interface SwapInterfaceProps {
   renderActionButton?: () => ReactNode;
   detailsOpen?: boolean;
   onDetailsToggle?: () => void;
+  isLoadingQuote?: boolean; // Add this prop to track quote loading
 }
 
 export function SwapInterface({
@@ -191,7 +192,7 @@ export function SwapInterface({
           protocolFeeUsd={protocolFeeUsd}
           relayerFeeUsd={relayerFeeUsd}
           totalFeeUsd={totalFeeUsd}
-          estimatedTime={estimatedTime} // Pass number or string
+          estimatedTime={estimatedTime}
           isOpen={detailsOpen}
           onToggle={onDetailsToggle}
         />

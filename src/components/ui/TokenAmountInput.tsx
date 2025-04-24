@@ -1,6 +1,5 @@
 import React from "react";
-import { NumberTicker } from "@/components/ui/NumberTicker";
-
+import PersistentAmountDisplay from "@/components/ui/PersistentAmountDisplay";
 interface TokenAmountInputProps {
   amount: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -28,34 +27,15 @@ export function TokenAmountInput({
 
   return (
     <div className="flex-1 flex flex-col items-end">
-      {isLoading ? (
-        <div className="w-full animate-pulse text-3xl text-right text-zinc-400">
-          loading...
-        </div>
-      ) : variant === "destination" ? (
-        <NumberTicker
-          value={Number(amount)}
-          decimalPlaces={3}
-          // Add these parameters for much faster animation
-          stiffness={500}
-          damping={90}
-          className={`w-full bg-transparent text-3xl focus:outline-none text-right numeric-input [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-            shouldApplyDisabledStyle ? "opacity-70" : ""
-          }`}
-        />
-      ) : (
-        <input
-          type="number"
-          value={amount}
-          onChange={onChange}
-          placeholder={placeholder}
-          className={`w-full bg-transparent text-3xl focus:outline-none text-right numeric-input [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-            shouldApplyDisabledStyle ? "opacity-70" : ""
-          }`}
-          readOnly={readOnly}
-          disabled={readOnly}
-        />
-      )}
+      <PersistentAmountDisplay
+        isLoading={isLoading}
+        amount={amount}
+        variant={variant}
+        onChange={onChange || (() => {})}
+        placeholder={placeholder}
+        shouldApplyDisabledStyle={shouldApplyDisabledStyle}
+        readOnly={readOnly}
+      />
       <span className="text-zinc-400 text-sm numeric-input">
         ${(Math.round(dollarValue * 100) / 100).toFixed(2)}
       </span>
