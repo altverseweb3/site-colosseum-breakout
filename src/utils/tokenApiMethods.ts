@@ -2,7 +2,12 @@
 import { evmTokenApi } from "@/api/evmTokenApi";
 import { getChainByChainId } from "@/config/chains";
 import useWeb3Store from "@/store/web3Store";
-import { Token, TokenAddressInfo, TokenBalance } from "@/types/web3";
+import {
+  Token,
+  TokenAddressInfo,
+  TokenBalance,
+  TokenPriceResult,
+} from "@/types/web3";
 
 /**
  * Formats a balance from hex or large number string to a human-readable token amount
@@ -95,168 +100,204 @@ export async function getPricesAndBalancesForChain(
   chainType: "source" | "destination" = "source",
 ): Promise<boolean> {
   try {
-    console.log(`Starting fetch for ${chainType} chain (ID: ${chainId})`);
+    console.log(
+      `Starting balance and price fetch for ${chainType} chain (ID: ${chainId}), user: ${userAddress}`,
+    );
 
-    // Get tokens for this chain
-    const tokens = useWeb3Store.getState().getTokensForChain(chainId);
-    if (!tokens.length) {
-      console.warn(`No tokens found for chain ${chainId} (${chainType})`);
+    // 1. Get Chain Info
+    const chain = getChainByChainId(chainId);
+    if (!chain) {
+      console.error(
+        `Chain with ID ${chainId} not found for ${chainType} chain`,
+      );
+      return false;
+    }
+    const networkName = chain.alchemyNetworkName; // Use consistent network name
+
+    // 2. Fetch Balances First
+    let balanceData: TokenBalance[] | null = null;
+    try {
+      console.log(
+        `Workspaceing balances for address ${userAddress} on ${chainType} chain (${networkName})`,
+      );
+      const balanceResponse = await evmTokenApi.getBalances({
+        network: networkName,
+        userAddress,
+      });
+
+      if (balanceResponse.error || !balanceResponse.data) {
+        console.error(
+          `Error fetching token balances for ${chainType} chain:`,
+          balanceResponse.error,
+        );
+        // Update store with empty balances for this user/chain to clear old data
+        useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
+        return false; // Indicate failure if balances can't be fetched
+      }
+
+      balanceData = balanceResponse.data;
+
+      if (!balanceData || balanceData.length === 0) {
+        console.log(
+          `No token balances found for ${userAddress} on ${chainType} chain ${chainId}.`,
+        );
+        // Update store with empty balances
+        useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
+        return true; // Successfully determined there are no balances
+      }
+      console.log(
+        `Found ${balanceData.length} token balances for ${userAddress} on ${chainType} chain.`,
+      );
+    } catch (error) {
+      console.error(`Error fetching balances for ${chainType} chain:`, error);
+      // Update store with empty balances on error
+      useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
       return false;
     }
 
-    // Prepare price fetching
-    console.log(
-      `Fetching prices for ${tokens.length} tokens on ${chainType} chain`,
+    // 3. Prepare Addresses for Price Fetching (Only those with balances)
+    const addressesWithBalance = balanceData.map((balance) =>
+      balance.contractAddress.toLowerCase(),
     );
 
-    const tokenAddresses: TokenAddressInfo[] = tokens
-      .map((token) => {
-        const chain = getChainByChainId(token.chainId);
-        if (!chain) return null;
+    // Filter unique addresses in case the balance API returns duplicates (unlikely but safe)
+    const uniqueAddresses = [...new Set(addressesWithBalance)];
 
-        return {
-          network: chain.alchemyNetworkName,
-          address: token.address,
-        };
-      })
-      .filter(Boolean) as TokenAddressInfo[];
+    const tokenAddressesForPriceFetch: TokenAddressInfo[] = uniqueAddresses.map(
+      (address) => ({
+        network: networkName,
+        address: address, // Ensure correct casing if API is sensitive, though usually lowercase is fine
+      }),
+    );
 
-    // Prepare batches
+    console.log(
+      `Workspaceing prices for ${tokenAddressesForPriceFetch.length} tokens with balances on ${chainType} chain`,
+    );
+
+    // 4. Fetch Prices in Batches
     const batchSize = 25;
     const batches: TokenAddressInfo[][] = [];
-
-    for (let i = 0; i < tokenAddresses.length; i += batchSize) {
-      batches.push(tokenAddresses.slice(i, i + batchSize));
+    for (let i = 0; i < tokenAddressesForPriceFetch.length; i += batchSize) {
+      batches.push(tokenAddressesForPriceFetch.slice(i, i + batchSize));
     }
 
-    // Start the price fetch operation
-    const pricePromise = (async () => {
-      const batchPromises = batches.map(async (batch, i) => {
-        try {
-          console.log(
-            `Processing price batch ${i + 1}/${batches.length} for ${chainType} chain`,
-          );
-          const response = await evmTokenApi.getTokenPrices({
-            addresses: batch,
-          });
-
-          if (response.error || !response.data) {
-            console.error(
-              `Error fetching token prices for ${chainType} chain:`,
-              response.error,
-            );
-            return;
-          }
-
-          // Get the latest state before updating to avoid race conditions
-          useWeb3Store.getState().updateTokenPrices(response.data.data);
-        } catch (error) {
-          console.error(
-            `Error in price batch ${i + 1} for ${chainType} chain:`,
-            error,
-          );
-        }
-      });
-
-      await Promise.all(batchPromises);
-      console.log(`All price batches processed for ${chainType} chain`);
-    })();
-
-    // Start the balance fetch operation concurrently
-    let balancePromise: Promise<TokenBalance[] | null> = Promise.resolve(null);
-
-    if (userAddress) {
-      balancePromise = (async () => {
+    const allFetchedPrices: TokenPriceResult[] = [];
+    const batchPromises = batches.map(async (batch, i) => {
+      try {
         console.log(
-          `Fetching balances for address ${userAddress} on ${chainType} chain`,
+          `Processing price batch ${i + 1}/${batches.length} for ${chainType} chain`,
+        );
+        const response = await evmTokenApi.getTokenPrices({ addresses: batch });
+
+        if (response.error || !response.data) {
+          console.error(
+            `Error fetching token prices batch ${i + 1} for ${chainType} chain:`,
+            response.error,
+          );
+          return; // Skip this batch on error
+        }
+
+        // Add successfully fetched prices to the aggregate list
+        allFetchedPrices.push(...response.data.data);
+      } catch (error) {
+        console.error(
+          `Error in price batch ${i + 1} for ${chainType} chain:`,
+          error,
+        );
+      }
+    });
+
+    // Wait for all price batches to complete
+    await Promise.all(batchPromises);
+    console.log(
+      `All price batches processed for ${chainType} chain. Fetched ${allFetchedPrices.length} prices.`,
+    );
+
+    // 5. Update Token Prices in the Store
+    if (allFetchedPrices.length > 0) {
+      // Get the latest state before updating to potentially avoid race conditions
+      // Although less critical now as balance processing waits for prices
+      useWeb3Store.getState().updateTokenPrices(allFetchedPrices);
+      console.log(
+        `Updated ${allFetchedPrices.length} token prices in the store for ${chainType} chain.`,
+      );
+    }
+
+    // 6. Process Balances (using fetched prices)
+    // Get potentially updated token info from the store (which now includes latest prices)
+    const updatedTokens = useWeb3Store.getState().getTokensForChain(chainId);
+    const tokensByAddress: Record<string, Token> = {};
+    updatedTokens.forEach((token) => {
+      tokensByAddress[token.address.toLowerCase()] = token;
+    });
+
+    const processedBalances = balanceData.map((balance) => {
+      const tokenAddress = balance.contractAddress.toLowerCase();
+      const token = tokensByAddress[tokenAddress]; // Get token info (includes price)
+
+      if (token && token.decimals !== undefined) {
+        const formattedBalance = formatTokenBalance(
+          balance.tokenBalance,
+          token.decimals,
         );
 
-        const chain = getChainByChainId(chainId);
-        if (!chain) {
-          console.error(
-            `Chain with ID ${chainId} not found for ${chainType} chain`,
-          );
-          return null;
-        }
-
-        try {
-          const balanceResponse = await evmTokenApi.getBalances({
-            network: chain.alchemyNetworkName,
-            userAddress,
-          });
-
-          if (balanceResponse.error || !balanceResponse.data) {
-            console.error(
-              `Error fetching token balances for ${chainType} chain:`,
-              balanceResponse.error,
-            );
-            return null;
-          }
-
-          return balanceResponse.data;
-        } catch (error) {
-          console.error(
-            `Error fetching balances for ${chainType} chain:`,
-            error,
-          );
-          return null;
-        }
-      })();
-    }
-
-    // Wait for both operations to complete
-    const [, balanceData] = await Promise.all([pricePromise, balancePromise]);
-
-    // Process balances if we have them
-    if (balanceData) {
-      // Get fresh tokens after price updates
-      const updatedTokens = useWeb3Store.getState().getTokensForChain(chainId);
-
-      // Process balances with up-to-date token info
-      const tokensByAddress: Record<string, Token> = {};
-      updatedTokens.forEach((token) => {
-        tokensByAddress[token.address.toLowerCase()] = token;
-      });
-
-      const processedBalances = balanceData.map((balance) => {
-        const tokenAddress = balance.contractAddress.toLowerCase();
-        const token = tokensByAddress[tokenAddress];
-
-        if (token && token.decimals !== undefined) {
-          const formattedBalance = formatTokenBalance(
-            balance.tokenBalance,
-            token.decimals,
-          );
-
-          let balanceUsd = undefined;
-          if (token.priceUsd) {
-            try {
-              const numBalance = parseFloat(formattedBalance);
-              const price = parseFloat(token.priceUsd);
+        let balanceUsd: string | undefined = undefined;
+        // Use the price fetched and stored in the token object
+        if (token.priceUsd) {
+          try {
+            const numBalance = parseFloat(formattedBalance);
+            // Ensure price is treated as a number
+            const price =
+              typeof token.priceUsd === "string"
+                ? parseFloat(token.priceUsd)
+                : token.priceUsd;
+            if (!isNaN(numBalance) && !isNaN(price)) {
               balanceUsd = (numBalance * price).toFixed(2);
-            } catch (e) {
-              console.error(
-                `Error calculating USD balance for ${chainType} chain:`,
-                e,
+            } else {
+              console.warn(
+                `Invalid number for USD calculation: balance=${formattedBalance}, price=${token.priceUsd} for token ${token.ticker || tokenAddress}`,
               );
             }
+          } catch (e) {
+            console.error(
+              `Error calculating USD balance for ${token.ticker || tokenAddress} on ${chainType} chain:`,
+              e,
+            );
           }
-
-          return {
-            ...balance,
-            tokenBalance: formattedBalance,
-            balanceUsd,
-          };
+        } else {
+          // Log if price is missing after attempting to fetch it
+          console.warn(
+            `Price missing for token ${token.ticker || tokenAddress} (address: ${tokenAddress}) on ${chainType} chain after fetch.`,
+          );
         }
 
-        return balance;
-      });
+        return {
+          ...balance, // Spread original balance data
+          tokenBalance: formattedBalance, // Overwrite with formatted balance
+          balanceUsd, // Add calculated USD value
+        };
+      } else {
+        // Handle cases where token info might be missing in the store
+        // or decimals are somehow undefined
+        console.warn(
+          `Token info or decimals missing for address ${tokenAddress} on chain ${chainId}. Cannot format balance or calculate USD value.`,
+        );
+        return {
+          ...balance, // Return original balance data
+          tokenBalance: balance.tokenBalance, // Keep raw balance
+          balanceUsd: undefined,
+        };
+      }
+    });
 
-      // Get the latest state before updating to avoid race conditions
-      useWeb3Store
-        .getState()
-        .updateTokenBalances(chainId, userAddress, processedBalances);
-    }
+    // 7. Update Token Balances in the Store
+    // Get the latest state before updating to avoid race conditions
+    useWeb3Store
+      .getState()
+      .updateTokenBalances(chainId, userAddress, processedBalances);
+    console.log(
+      `Updated ${processedBalances.length} processed token balances in the store for user ${userAddress} on ${chainType} chain ${chainId}.`,
+    );
 
     console.log(
       `Successfully completed fetch for ${chainType} chain (ID: ${chainId})`,
@@ -264,7 +305,7 @@ export async function getPricesAndBalancesForChain(
     return true;
   } catch (error) {
     console.error(
-      `Error fetching prices and balances for ${chainType} chain:`,
+      `Unhandled error fetching prices and balances for ${chainType} chain ${chainId}:`,
       error,
     );
     return false;
