@@ -46,20 +46,24 @@ export const loadTokensForChain = async (
 
     const numericChainId = chainConfig.chainId;
 
-    return data
-      .filter((item) => item.contract_address !== "native")
-      .map((item) => {
-        return {
-          id: item.id,
-          name: item.name.toLowerCase(),
-          ticker: item.symbol.toUpperCase(),
-          icon: item.local_image,
-          address: item.contract_address,
-          decimals: item.alchemy_metadata.decimals,
-          chainId: numericChainId,
-          isWalletToken: false,
-        };
-      });
+    return data.map((item) => {
+      return {
+        id: item.id,
+        name: item.name.toLowerCase(),
+        ticker: item.symbol.toUpperCase(),
+        icon: item.local_image,
+        address:
+          item.contract_address === "native"
+            ? "0x0000000000000000000000000000000000000000"
+            : item.contract_address,
+        decimals:
+          item.contract_address === "native"
+            ? 18
+            : item.alchemy_metadata.decimals,
+        chainId: numericChainId,
+        isWalletToken: false,
+      };
+    });
   } catch (error) {
     console.error(`Error loading tokens for chain ${fetchChainId}:`, error);
     return [];
