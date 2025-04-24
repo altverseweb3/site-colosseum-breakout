@@ -46,7 +46,7 @@ export function SiteHeader() {
         await disconnectMetamask();
         setIsOpen(false); // Close the sheet after disconnecting
       } catch (error) {
-        toast("Failed to disconnect wallet.");
+        toast.error("Failed to disconnect wallet.");
         console.error("Failed to disconnect wallet: ", error);
       }
     }

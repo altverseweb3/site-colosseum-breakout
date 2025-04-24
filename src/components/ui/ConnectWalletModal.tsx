@@ -64,7 +64,7 @@ export const ConnectWalletModal = ({
 
   const handleWalletSelect = async (wallet: WalletOption) => {
     if (wallet.disabled) {
-      toast(`${wallet.name} integration coming soon!`);
+      toast.info(`${wallet.name} integration coming soon!`);
       return;
     }
 
@@ -76,13 +76,14 @@ export const ConnectWalletModal = ({
 
       if (result) {
         setOpen(false);
+        toast.success("Wallet connected successfully.");
         if (onSuccess) onSuccess();
       } else {
-        toast(`Failed to connect to ${wallet.name}.`);
+        toast.error(`Failed to connect to ${wallet.name}.`);
       }
     } catch (error) {
       console.error(`Error connecting to ${wallet.name}:`, error);
-      toast(`Failed to connect to ${wallet.name}.`);
+      toast.error(`Failed to connect to ${wallet.name}.`);
     } finally {
       setConnecting(null);
     }
