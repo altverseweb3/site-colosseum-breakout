@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Clock,
   ChevronDown,
@@ -7,6 +7,8 @@ import {
   Edit2,
   Check,
 } from "lucide-react";
+import { Slider } from "@/components/ui/Slider";
+import { Switch } from "@/components/ui/Switch";
 import useWeb3Store, {
   useTransactionDetails,
   useSetSlippageValue,
@@ -29,13 +31,13 @@ export function TransactionDetails({
   isOpen,
   onToggle,
 }: TransactionDetailsProps) {
-  // Get values from zustand store
+  // ─── Zustand store hooks ─────────────────────────────────────────────────────
   const activeWallet = useWeb3Store((state) => state.activeWallet);
   const transactionDetails = useTransactionDetails();
   const setSlippageValue = useSetSlippageValue();
   const setReceiveAddress = useSetReceiveAddress();
 
-  // Local state
+  // ─── Local state ─────────────────────────────────────────────────────────────
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(isOpen || false);
   const [slippageMode, setSlippageMode] = useState<"auto" | "custom">("auto");
   const [customSlippage, setCustomSlippage] = useState<string>("");
@@ -43,72 +45,69 @@ export function TransactionDetails({
   const [isEditingReceiveAddress, setIsEditingReceiveAddress] = useState(false);
   const [receiveAddressInput, setReceiveAddressInput] = useState("");
 
-  const MAX_SLIPPAGE = 10;
+  // ─── Gas Drop ─────────────────────────────────────────────────────────────
+  const [isGasDropEnabled, setIsGasDropEnabled] = useState<boolean>(false);
+  const [gasDropValue, setGasDropValue] = useState<number>(50);
 
-  // Default values
+  // Ref for click‐outside on receive address input
+  const receiveAddressInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Constants ───────────────────────────────────────────────────────────────
+  const MAX_SLIPPAGE = 10;
   const DEFAULT_AUTO_SLIPPAGE = "auto";
   const DEFAULT_CUSTOM_SLIPPAGE = "3.00%";
 
-  // Ref for address input to handle click outside
-  const receiveAddressInputRef = useRef<HTMLInputElement>(null);
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  // Format slippage value to ensure consistent format (always 2 decimal places with % sign)
+  /**
+   * Format a slippage string (e.g. "3" or "3.0" or "3.00")
+   * into "3.00%". If NaN, return DEFAULT_AUTO_SLIPPAGE.
+   */
   const formatSlippageValue = (value: string): string => {
-    // Remove any % symbol first
-    const numericValue = parseFloat(value.replace("%", ""));
-
-    if (isNaN(numericValue)) return DEFAULT_AUTO_SLIPPAGE;
-
-    // Format to 2 decimal places and add % symbol
-    return `${numericValue.toFixed(2)}%`;
+    const numeric = parseFloat(value.replace("%", ""));
+    if (isNaN(numeric)) return DEFAULT_AUTO_SLIPPAGE;
+    return `${numeric.toFixed(2)}%`;
   };
 
-  // Wrap saveReceiveAddress in useCallback to prevent recreating on every render
+  /**
+   * Save the receiveAddressInput into the store if valid,
+   * otherwise revert to wallet address.
+   */
   const saveReceiveAddress = useCallback(() => {
-    if (
-      receiveAddressInput &&
-      /^0x[a-fA-F0-9]{40}$/.test(receiveAddressInput)
-    ) {
+    if (/^0x[a-fA-F0-9]{40}$/.test(receiveAddressInput)) {
       setReceiveAddress(receiveAddressInput);
     } else if (!receiveAddressInput && activeWallet) {
-      // If input is empty, revert to active wallet address
       setReceiveAddressInput(activeWallet.address);
     }
     setIsEditingReceiveAddress(false);
   }, [receiveAddressInput, activeWallet, setReceiveAddress]);
 
-  // Initialize values from store - only run once on component mount
-  useEffect(
-    () => {
-      // Set initial slippage mode based on store value
-      const storeSlippage = transactionDetails.slippage;
+  // ─── Effects ────────────────────────────────────────────────────────────────
 
-      if (storeSlippage === "auto" || !storeSlippage) {
-        // If auto or missing, set mode to auto
-        setSlippageMode("auto");
-        // Ensure store has the auto value
-        if (storeSlippage !== "auto") {
-          setSlippageValue("auto");
-        }
-      } else {
-        // If anything else, set mode to custom
-        setSlippageMode("custom");
-        setCustomSlippage(storeSlippage.replace("%", ""));
+  // Initialize slippage + receive address on mount
+  useEffect(() => {
+    const storeSlippage = transactionDetails.slippage;
+    if (storeSlippage === "auto" || !storeSlippage) {
+      setSlippageMode("auto");
+      if (storeSlippage !== "auto") {
+        setSlippageValue("auto");
       }
+    } else {
+      setSlippageMode("custom");
+      setCustomSlippage(storeSlippage.replace("%", ""));
+    }
 
-      // Set initial receive address
-      if (transactionDetails.receiveAddress) {
-        setReceiveAddressInput(transactionDetails.receiveAddress);
-      } else if (activeWallet) {
-        setReceiveAddressInput(activeWallet.address);
-      }
-    },
-    [
-      /* empty dependency array to run only once */
-    ],
-  );
+    if (transactionDetails.receiveAddress) {
+      setReceiveAddressInput(transactionDetails.receiveAddress);
+    } else if (activeWallet) {
+      setReceiveAddressInput(activeWallet.address);
+    }
 
-  // Handle click outside for receive address editing
+    // run once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Click‐outside handler for receive address input
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -119,53 +118,41 @@ export function TransactionDetails({
         saveReceiveAddress();
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isEditingReceiveAddress, saveReceiveAddress]);
 
-  // Update local state when prop changes
+  // Sync external isOpen prop
   useEffect(() => {
     if (isOpen !== undefined) {
       setIsDetailsExpanded(isOpen);
     }
   }, [isOpen]);
 
+  // ─── Event handlers ─────────────────────────────────────────────────────────
+
   const toggleDetails = () => {
-    const newState = !isDetailsExpanded;
-    setIsDetailsExpanded(newState);
-    if (onToggle) {
-      onToggle();
-    }
+    setIsDetailsExpanded((prev) => !prev);
+    onToggle?.();
   };
 
-  const formatEstimatedTime = (
-    estimatedTime?: string | number | null,
-  ): string => {
-    // If not provided or invalid, return a default value
-    if (estimatedTime === null || estimatedTime === undefined) return "~";
-
-    // If it's already a formatted string (like "20s"), return it
-    if (typeof estimatedTime === "string" && isNaN(Number(estimatedTime))) {
-      return estimatedTime;
+  /**
+   * Format estimatedTime (number in seconds or a string).
+   */
+  const formatEstimatedTime = (time?: string | number | null): string => {
+    if (time === null || time === undefined) return "~";
+    if (typeof time === "string" && isNaN(Number(time))) {
+      return time;
     }
-
-    // Convert to number (handle both numeric strings and numbers)
-    const seconds =
-      typeof estimatedTime === "string"
-        ? parseInt(estimatedTime, 10)
-        : estimatedTime;
-
-    // Format based on duration
+    const seconds = typeof time === "string" ? parseInt(time, 10) : time;
     if (seconds < 60) {
       return `${seconds}s`;
     } else if (seconds < 3600) {
-      const minutes = Math.round(seconds / 60);
-      return `${minutes}m`;
+      return `${Math.round(seconds / 60)}m`;
     } else {
-      const hours = Math.round((seconds / 3600) * 10) / 10; // Round to 1 decimal place
+      const hours = Math.round((seconds / 3600) * 10) / 10;
       return `${hours}h`;
     }
   };
@@ -175,22 +162,17 @@ export function TransactionDetails({
     setSlippageError(null);
 
     if (mode === "auto") {
-      // When switching to auto, use "auto" as the slippage value
       setSlippageValue(DEFAULT_AUTO_SLIPPAGE);
-    } else if (mode === "custom") {
-      // When switching to custom, preserve the current input value if valid, otherwise use default 3.00%
+    } else {
       if (customSlippage && !isNaN(parseFloat(customSlippage))) {
-        // Only update store if the custom value is already valid
-        const numericValue = parseFloat(customSlippage);
-        if (numericValue > 0 && numericValue <= MAX_SLIPPAGE) {
+        const n = parseFloat(customSlippage);
+        if (n > 0 && n <= MAX_SLIPPAGE) {
           setSlippageValue(formatSlippageValue(customSlippage));
         } else {
-          // If invalid, reset to default custom value
           setCustomSlippage(DEFAULT_CUSTOM_SLIPPAGE.replace("%", ""));
           setSlippageValue(DEFAULT_CUSTOM_SLIPPAGE);
         }
       } else {
-        // If no custom value exists, initialize with the default custom value
         setCustomSlippage(DEFAULT_CUSTOM_SLIPPAGE.replace("%", ""));
         setSlippageValue(DEFAULT_CUSTOM_SLIPPAGE);
       }
@@ -200,18 +182,14 @@ export function TransactionDetails({
   const handleCustomSlippageChange = (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const value = e.target.value;
-
-    // Only allow numbers and up to 2 decimal places
-    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-      setCustomSlippage(value);
-
-      // Validate the value - just set error messages but don't update the store yet
-      const numericValue = parseFloat(value);
-      if (value && !isNaN(numericValue)) {
-        if (numericValue > MAX_SLIPPAGE) {
+    const v = e.target.value;
+    if (v === "" || /^\d*\.?\d{0,2}$/.test(v)) {
+      setCustomSlippage(v);
+      const n = parseFloat(v);
+      if (v && !isNaN(n)) {
+        if (n > MAX_SLIPPAGE) {
           setSlippageError(`Maximum slippage is ${MAX_SLIPPAGE}%`);
-        } else if (numericValue <= 0) {
+        } else if (n <= 0) {
           setSlippageError("Slippage must be greater than 0%");
         } else {
           setSlippageError(null);
@@ -222,22 +200,13 @@ export function TransactionDetails({
     }
   };
 
-  // Handle custom slippage input blur
   const handleCustomSlippageBlur = () => {
-    // Only update the store when the input loses focus and is valid
     if (customSlippage && !slippageError) {
-      const numericValue = parseFloat(customSlippage);
-      if (
-        !isNaN(numericValue) &&
-        numericValue > 0 &&
-        numericValue <= MAX_SLIPPAGE
-      ) {
-        // Format consistently and update the store
-        const formattedValue = formatSlippageValue(customSlippage);
-        setSlippageValue(formattedValue);
+      const n = parseFloat(customSlippage);
+      if (!isNaN(n) && n > 0 && n <= MAX_SLIPPAGE) {
+        setSlippageValue(formatSlippageValue(customSlippage));
       }
     } else if (customSlippage === "") {
-      // If empty, revert to auto mode
       handleSlippageModeChange("auto");
     }
   };
@@ -252,13 +221,14 @@ export function TransactionDetails({
     setReceiveAddressInput(e.target.value);
   };
 
-  // Get current receiving address
+  // Determine what to show as the current receiving address
   const receivingAddress =
     transactionDetails.receiveAddress || activeWallet?.address || "0x000...000";
 
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="mt-2 text-white border-zinc-900 border-[1px] rounded-[3px] px-2">
-      {/* Summary Row (Always Visible) */}
+      {/* Summary Row */}
       <div
         className="flex items-center justify-between cursor-pointer py-2 numeric-input text-zinc-400 sm:text-[12px] text-[9px]"
         onClick={toggleDetails}
@@ -279,7 +249,7 @@ export function TransactionDetails({
         </div>
       </div>
 
-      {/* Expanded Details with Animation */}
+      {/* Expanded Details */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
           isDetailsExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
@@ -342,12 +312,14 @@ export function TransactionDetails({
               </div>
             </div>
 
+            {/* Fee Row */}
             <div className="text-left text-zinc-400">fee</div>
             <div className="text-right numeric-input text-zinc-200">
               ${(Math.round(totalFeeUsd * 100) / 100).toFixed(2)}
             </div>
           </div>
 
+          {/* Receiving Address Block */}
           <div className="mt-2">
             <div className="flex items-center justify-between">
               <div className="text-left text-amber-500 text-[12px] w-[100px]">
@@ -373,7 +345,7 @@ export function TransactionDetails({
                 </div>
               ) : (
                 <div className="flex items-center w-full">
-                  <span className="flex-grow"></span>
+                  <span className="flex-grow" />
                   <button
                     className="text-amber-500 hover:text-amber-400 flex-shrink-0 mr-[5px]"
                     onClick={startEditingReceiveAddress}
@@ -387,6 +359,36 @@ export function TransactionDetails({
               )}
             </div>
           </div>
+
+          {/* ─── Gas Drop ─────────────────────────── */}
+          <div className="mt-2 grid grid-cols-2 items-center text-[12px] gap-y-2">
+            <div className="text-left text-zinc-400">gas drop</div>
+            <div className="flex justify-end">
+              <Switch
+                checked={isGasDropEnabled}
+                onCheckedChange={setIsGasDropEnabled}
+              />
+            </div>
+          </div>
+
+          {isGasDropEnabled && (
+            <div className="mt-2 flex items-center space-x-4">
+              <div className="flex-1">
+                <Slider
+                  value={[gasDropValue]}
+                  onValueChange={(val) => setGasDropValue(val[0])}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="text-right numeric-input text-zinc-200 sm:text-xs text-[9px]">
+                {gasDropValue}%
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
