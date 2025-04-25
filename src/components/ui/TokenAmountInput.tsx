@@ -121,9 +121,11 @@ export function TokenAmountInput({
         readOnly={readOnly}
       />
       <div className="w-full flex flex-col">
-        <span className="text-zinc-400 text-sm numeric-input">
-          ${(Math.round(dollarValue * 100) / 100).toFixed(2)}
-        </span>
+        {variant === "destination" && (
+          <span className="text-zinc-400 text-sm numeric-input">
+            ${(Math.round(dollarValue * 100) / 100).toFixed(2)}
+          </span>
+        )}
 
         {variant === "source" && (
           <div className="flex justify-end w-full mt-2 gap-2">
