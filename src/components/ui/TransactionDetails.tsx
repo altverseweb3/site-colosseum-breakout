@@ -28,7 +28,6 @@ interface TransactionDetailsProps {
 }
 
 export function TransactionDetails({
-  totalFeeUsd = 0,
   estimatedTime = "~",
   isOpen,
   onToggle,
@@ -328,12 +327,6 @@ export function TransactionDetails({
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Fee Row */}
-            <div className="text-left text-zinc-400">fee</div>
-            <div className="text-right numeric-input text-zinc-200">
-              ${(Math.round(totalFeeUsd * 100) / 100).toFixed(2)}
             </div>
           </div>
 
