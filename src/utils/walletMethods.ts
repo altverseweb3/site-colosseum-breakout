@@ -555,6 +555,11 @@ export function useTokenTransfer(
         // Get current slippage in basis points
         const slippageBps = getSlippageBps();
 
+        // TODO: Retrieve Gas Drop from Slider
+        const gasDrop = 0;
+        const referrer = "0x95C0029426afa8E47a71b8E6b251f5B70511e599";
+        const referrerBps = 50;
+
         if (options.type === "swap" && sourceToken && destinationToken) {
           quotes = await getMayanQuote({
             amount,
@@ -563,6 +568,9 @@ export function useTokenTransfer(
             sourceChain,
             destinationChain,
             slippageBps,
+            gasDrop,
+            referrer,
+            referrerBps,
           });
         } else if (options.type === "bridge" && sourceToken) {
           quotes = await getMayanBridgeQuote({
@@ -857,6 +865,11 @@ export function useTokenTransfer(
       // Get current slippage in basis points
       const slippageBps = getSlippageBps();
 
+      // TODO: Retrieve Gas Drop from Slider
+      const gasDrop = 0;
+      const referrer = "0x95C0029426afa8E47a71b8E6b251f5B70511e599";
+      const referrerBps = 50;
+
       if (options.type === "swap" && sourceToken && destinationToken) {
         quotes = await getMayanQuote({
           amount,
@@ -865,6 +878,9 @@ export function useTokenTransfer(
           sourceChain,
           destinationChain,
           slippageBps,
+          gasDrop,
+          referrer,
+          referrerBps,
         });
       }
 
@@ -881,7 +897,10 @@ export function useTokenTransfer(
         destinationAddress: receiveAddress || activeWallet!.address, // Usually same as swapper
         sourceToken: sourceToken!.address,
         amount: amount,
-        referrerAddresses: null,
+        referrerAddresses: {
+          evm: "0x95C0029426afa8E47a71b8E6b251f5B70511e599",
+          solana: "9tks3cKdFxDwBPiyoYy9Wi4gQ29T9Qizniq7kDW86kNh",
+        },
         signer,
         tokenDecimals: sourceToken!.decimals || 18,
       });
