@@ -57,6 +57,7 @@ export type Chain = {
   decimals: number;
   testnet?: boolean;
   l2: boolean;
+  gasDrop: number;
 };
 
 export interface Web3StoreState {

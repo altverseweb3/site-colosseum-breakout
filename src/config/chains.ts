@@ -18,6 +18,7 @@ export const chains: Record<string, Chain> = {
     chainId: 1,
     decimals: 18,
     l2: false,
+    gasDrop: 0.05,
   },
   arbitrum: {
     id: "arbitrum",
@@ -35,6 +36,7 @@ export const chains: Record<string, Chain> = {
     chainId: 42161,
     decimals: 18,
     l2: true,
+    gasDrop: 0.01,
   },
   optimism: {
     id: "optimism",
@@ -52,6 +54,7 @@ export const chains: Record<string, Chain> = {
     chainId: 10,
     decimals: 18,
     l2: true,
+    gasDrop: 0.01,
   },
   base: {
     id: "base",
@@ -69,6 +72,7 @@ export const chains: Record<string, Chain> = {
     chainId: 8453,
     decimals: 18,
     l2: true,
+    gasDrop: 0.01,
   },
   unichain: {
     id: "unichain",
@@ -86,6 +90,7 @@ export const chains: Record<string, Chain> = {
     chainId: 130,
     decimals: 18,
     l2: true,
+    gasDrop: 0.01,
   },
   // sui: {
   //   id: "sui",
@@ -120,6 +125,7 @@ export const chains: Record<string, Chain> = {
     chainId: 137,
     decimals: 18,
     l2: false,
+    gasDrop: 0.2,
   },
   "binance-smart-chain": {
     id: "binance-smart-chain",
@@ -137,6 +143,7 @@ export const chains: Record<string, Chain> = {
     chainId: 56,
     decimals: 18,
     l2: false,
+    gasDrop: 0.02,
   },
   avalanche: {
     id: "avalanche",
@@ -154,6 +161,7 @@ export const chains: Record<string, Chain> = {
     chainId: 43114,
     decimals: 18,
     l2: false,
+    gasDrop: 0.1,
   },
   // solana: {
   //   id: "solana",
