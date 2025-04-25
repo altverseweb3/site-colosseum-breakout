@@ -330,10 +330,6 @@ export async function getPricesAndBalancesForChain(
       `Unhandled error fetching prices and balances for ${chainType} chain ${chainId}:`,
       error,
     );
-    // Attempt to clear balances in store on catastrophic failure? Optional.
-    // if (userAddress && chainId) {
-    //    useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
-    // }
     return false;
   }
 
