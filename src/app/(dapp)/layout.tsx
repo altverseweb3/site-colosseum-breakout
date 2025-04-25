@@ -11,7 +11,7 @@ export default function DAppLayout({
     <div className="flex flex-col h-dvh">
       <TokenInitializer />
       <SiteHeader />
-      <main className="container mx-auto flex-1 md:h-screen pt-6 px-2 sm:px-4">
+      <main className="container mx-auto flex-1 md:h-screen px-2 sm:px-4">
         {children}
       </main>
       <SiteFooter />

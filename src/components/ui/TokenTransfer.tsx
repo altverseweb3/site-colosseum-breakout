@@ -163,7 +163,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
 
   return (
     <div
-      className={`flex h-full w-full items-start justify-center sm:pt-[6vh] pt-[2vh] min-h-[500px] ${className}`}
+      className={`flex h-full w-full items-start justify-center sm:pt-[10vh] pt-1 min-h-[500px] ${className}`}
     >
       <div className="w-full max-w-md">
         <SwapInterface
