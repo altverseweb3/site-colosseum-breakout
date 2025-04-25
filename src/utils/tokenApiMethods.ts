@@ -7,6 +7,7 @@ import {
   TokenAddressInfo,
   TokenBalance,
   TokenPriceResult,
+  TokenMetadata,
 } from "@/types/web3";
 
 /**
@@ -308,10 +309,50 @@ export async function getPricesAndBalancesForChain(
       `Unhandled error fetching prices and balances for ${chainType} chain ${chainId}:`,
       error,
     );
-    // Attempt to clear balances in store on catastrophic failure? Optional.
-    // if (userAddress && chainId) {
-    //    useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
-    // }
     return false;
+  }
+}
+
+/**
+ * Fetches token metadata for a specific token address and chain
+ * @param chainId The chain ID where the token contract exists
+ * @param contractAddress The token contract address
+ * @returns Promise resolving to the token metadata or null if an error occurs
+ */
+export async function getTokenMetadata(
+  chainId: number,
+  contractAddress: string,
+): Promise<TokenMetadata | null> {
+  try {
+    console.log(
+      `Fetching token metadata for ${contractAddress} on chain ID ${chainId}`,
+    );
+
+    // Get chain info
+    const chain = getChainByChainId(chainId);
+    if (!chain) {
+      console.error(`Chain with ID ${chainId} not found for token metadata`);
+      return null;
+    }
+
+    // Prepare and send the request
+    const response = await evmTokenApi.getTokenMetadata({
+      network: chain.alchemyNetworkName,
+      contractAddress,
+    });
+
+    // Handle errors
+    if (response.error || !response.data) {
+      console.error(`Error fetching token metadata:`, response.error);
+      return null;
+    }
+
+    console.log(
+      `Successfully fetched metadata for ${contractAddress} on chain ${chainId}`,
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching token metadata:`, error);
+    return null;
   }
 }

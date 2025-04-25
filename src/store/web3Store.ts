@@ -197,6 +197,39 @@ const useWeb3Store = create<Web3StoreState>()(
         set({ destinationToken: token });
       },
 
+      addCustomToken: (token: Token) => {
+        set((state) => {
+          // Ensure lowercase address for consistency
+          const address = token.address.toLowerCase();
+          const chainId = token.chainId;
+          const compositeKey = `${chainId}-${address}`;
+
+          // Check if token already exists in the store
+          if (state.tokensByCompositeKey[compositeKey]) {
+            console.log("Token already exists in store:", compositeKey);
+            return state; // No changes needed
+          }
+
+          console.log("Adding custom token to store:", token);
+
+          // Add token to allTokensList
+          const newTokensList = [...state.allTokensList, token];
+
+          // Update derived collections
+          const {
+            tokensByCompositeKey: updatedByCompositeKey,
+            tokensByChainId: updatedByChainId,
+            tokensByAddress: updatedByAddress,
+          } = updateTokenCollections(newTokensList);
+
+          return {
+            allTokensList: newTokensList,
+            tokensByCompositeKey: updatedByCompositeKey,
+            tokensByChainId: updatedByChainId,
+            tokensByAddress: updatedByAddress,
+          };
+        });
+      },
       swapTokens: () => {
         const state = get();
         console.log(

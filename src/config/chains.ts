@@ -75,7 +75,7 @@ export const chains: Record<string, Chain> = {
     name: "unichain",
     chainName: "Unichain",
     mayanName: "unichain",
-    alchemyNetworkName: Network.UNICHAIN_SEPOLIA,
+    alchemyNetworkName: Network.UNICHAIN_MAINNET,
     symbol: "ETH",
     currency: "Ethereum",
     icon: "UNI.svg",

@@ -37,6 +37,7 @@ export type Token = {
   userBalanceUsd?: string;
   priceUsd?: string;
   isWalletToken?: boolean;
+  customToken?: boolean;
 };
 
 export type Chain = {
@@ -105,6 +106,7 @@ export interface Web3StoreState {
   setSourceToken: (token: Token | null) => void;
   setDestinationToken: (token: Token | null) => void;
   swapTokens: () => void;
+  addCustomToken: (token: Token) => void;
 
   // Token data actions
   loadTokens: () => Promise<void>;
@@ -202,7 +204,7 @@ export enum Network {
   GEIST_POLTER = "geist-polter",
   LUMIA_PRISM = "lumia-prism",
   LUMIA_TESTNET = "lumia-testnet",
-  UNICHAIN_SEPOLIA = "unichain-sepolia",
+  UNICHAIN_MAINNET = "unichain-mainnet",
   SONIC_MAINNET = "sonic-mainnet",
   SONIC_BLAZE = "sonic-blaze",
   XMTP_TESTNET = "xmtp-testnet",

@@ -27,6 +27,7 @@ import useWeb3Store, {
 import { TokenImage } from "./TokenImage";
 import { useDebounce } from "use-debounce";
 import { SkeletonTokenList } from "./SkeletonTokenList";
+import { getTokenMetadata } from "@/utils/tokenApiMethods";
 
 interface TokenListItemProps {
   token: Token;
@@ -164,6 +165,7 @@ const VirtualizedTokenList: React.FC<{
   onCopy: (text: string, tokenId: string) => void;
   chain: Chain;
   searchQuery: string;
+  isSearchingMetadata?: boolean;
 }> = React.memo(
   ({
     walletTokens,
@@ -255,12 +257,14 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   const tokensPreloadedRef = useRef(false);
   const [userIntentToOpen, setUserIntentToOpen] = useState(false);
   const [chainTokens, setChainTokens] = useState([] as Token[]);
+  const [isSearchingMetadata, setIsSearchingMetadata] = useState(false);
 
   const tokensLoading = useWeb3Store((state) => state.tokensLoading);
   const sourceChain = useSourceChain();
   const destinationChain = useDestinationChain();
   const sourceToken = useSourceToken();
   const destinationToken = useDestinationToken();
+  const addCustomToken = useWeb3Store((state) => state.addCustomToken);
 
   const chainToShow = variant === "source" ? sourceChain : destinationChain;
 
@@ -273,6 +277,77 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   const loadTokens = useWeb3Store((state) => state.loadTokens);
   const getTokensForChain = useWeb3Store((state) => state.getTokensForChain);
   const tokenCount = useWeb3Store((state) => state.allTokensList.length);
+
+  const lookedUpAddresses = useRef<Set<string>>(new Set());
+
+  const isValidEthereumAddress = useCallback((address: string): boolean => {
+    return /^0x[a-fA-F0-9]{40}$/i.test(address);
+  }, []);
+
+  const lookupTokenByAddress = useCallback(
+    async (address: string) => {
+      // Normalize the address for consistent comparison
+      const normalizedAddress = address.toLowerCase();
+
+      // Only proceed if it's a valid address
+      if (!isValidEthereumAddress(normalizedAddress)) return;
+
+      // Check if we've already looked up this address for this chain
+      const lookupKey = `${chainToShow.chainId}-${normalizedAddress}`;
+      if (lookedUpAddresses.current.has(lookupKey)) {
+        console.log(
+          `Already looked up ${normalizedAddress} on chain ${chainToShow.chainId}, skipping`,
+        );
+        return;
+      }
+
+      // Mark this address as looked up before making the API call
+      lookedUpAddresses.current.add(lookupKey);
+
+      setIsSearchingMetadata(true);
+      try {
+        console.log(
+          `Looking up metadata for ${normalizedAddress} on chain ${chainToShow.chainId}`,
+        );
+        const metadata = await getTokenMetadata(
+          chainToShow.chainId,
+          normalizedAddress,
+        );
+        // Only add tokens that have valid metadata with at least a name
+        if (metadata && metadata.name) {
+          console.log("Found valid token metadata:", metadata);
+
+          // Create a new token object from the metadata
+          const newToken: Token = {
+            id: `custom-${chainToShow.chainId}-${normalizedAddress}`,
+            chainId: chainToShow.chainId,
+            name: metadata.name,
+            ticker: metadata.symbol || "???",
+            address: normalizedAddress,
+            decimals: metadata.decimals || 18,
+            icon: "unknown.png",
+            isWalletToken: false,
+            customToken: true,
+          };
+
+          // Add to global token list
+          addCustomToken(newToken);
+
+          console.log("Custom token added to store:", newToken);
+        } else {
+          console.log(
+            "Invalid or missing metadata for address:",
+            normalizedAddress,
+          );
+        }
+      } catch (error) {
+        console.error("Error looking up token metadata:", error);
+      } finally {
+        setIsSearchingMetadata(false);
+      }
+    },
+    [chainToShow, isValidEthereumAddress, addCustomToken],
+  );
 
   useEffect(() => {
     if (tokenCount === 0 && !tokensLoading && !tokensPreloadedRef.current) {
@@ -315,6 +390,7 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
 
   useEffect(() => {
     setChainTokens(getTokensForChain(chainToShow.chainId));
+    lookedUpAddresses.current.clear();
   }, [getTokensForChain, chainToShow, tokensLoading, isOpen, tokenCount]);
 
   const walletTokens = useMemo(() => {
@@ -334,6 +410,30 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
       }, 2000);
     });
   }, []);
+
+  // Effect to lookup token when search is an address with no results
+  useEffect(() => {
+    if (
+      debouncedSearchQuery &&
+      isValidEthereumAddress(debouncedSearchQuery) &&
+      !isSearchingMetadata &&
+      walletTokens.filter(
+        (t) => t.address.toLowerCase() === debouncedSearchQuery.toLowerCase(),
+      ).length === 0 &&
+      allTokens.filter(
+        (t) => t.address.toLowerCase() === debouncedSearchQuery.toLowerCase(),
+      ).length === 0
+    ) {
+      lookupTokenByAddress(debouncedSearchQuery);
+    }
+  }, [
+    debouncedSearchQuery,
+    walletTokens,
+    allTokens,
+    isSearchingMetadata,
+    isValidEthereumAddress,
+    lookupTokenByAddress,
+  ]);
 
   const handleSelectToken = useCallback(
     (token: Token) => {
@@ -355,12 +455,22 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
     [],
   );
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    setIsOpen(open);
-    if (open) {
-      setSearchQuery("");
-    }
-  }, []);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setIsOpen(open);
+      if (open) {
+        // Clear search query
+        setSearchQuery("");
+
+        // Refresh tokens from store
+        setChainTokens(getTokensForChain(chainToShow.chainId));
+
+        // Clear the lookup cache when opening the dialog
+        lookedUpAddresses.current.clear();
+      }
+    },
+    [getTokensForChain, chainToShow.chainId],
+  );
 
   const handleMouseEnter = useCallback(() => {
     setUserIntentToOpen(true);
@@ -491,6 +601,7 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
               onCopy={copyToClipboard}
               chain={chainToShow}
               searchQuery={debouncedSearchQuery}
+              isSearchingMetadata={isSearchingMetadata}
             />
           )}
         </div>
