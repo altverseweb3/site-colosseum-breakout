@@ -85,6 +85,7 @@ export interface Web3StoreState {
   transactionDetails: {
     slippage: "auto" | string;
     receiveAddress: string | null;
+    gasDrop: number;
   };
 
   tokenBalancesByWallet: Record<string, Record<string, string>>; // chainId_walletAddress -> tokenAddress -> balance

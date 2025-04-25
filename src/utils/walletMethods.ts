@@ -501,6 +501,18 @@ export function useTokenTransfer(
     return Math.round(slippagePercent * 100);
   }, [transactionDetails.slippage]);
 
+  // Convert gasDrop from store (number) or default to 0
+  const getGasDrop = useCallback((): number => {
+    // if it isn’t set or isn’t a number, fall back to 0
+    if (
+      transactionDetails.gasDrop === undefined ||
+      typeof transactionDetails.gasDrop !== "number"
+    ) {
+      return 0;
+    }
+    return transactionDetails.gasDrop;
+  }, [transactionDetails.gasDrop]);
+
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setAmount(e.target.value);
   };
@@ -555,8 +567,10 @@ export function useTokenTransfer(
         // Get current slippage in basis points
         const slippageBps = getSlippageBps();
 
-        // TODO: Retrieve Gas Drop from Slider
-        const gasDrop = 0;
+        // Get gas drop
+        const gasDrop = getGasDrop();
+
+        // Set referrer
         const referrer = "0x95C0029426afa8E47a71b8E6b251f5B70511e599";
         const referrerBps = 50;
 
@@ -811,6 +825,7 @@ export function useTokenTransfer(
     options.type,
     transactionDetails.slippage,
     getSlippageBps,
+    getGasDrop,
     refreshTrigger,
   ]);
 
@@ -865,8 +880,10 @@ export function useTokenTransfer(
       // Get current slippage in basis points
       const slippageBps = getSlippageBps();
 
-      // TODO: Retrieve Gas Drop from Slider
-      const gasDrop = 0;
+      // Get gas drop
+      const gasDrop = getGasDrop();
+
+      // Set referrer
       const referrer = "0x95C0029426afa8E47a71b8E6b251f5B70511e599";
       const referrerBps = 50;
 
