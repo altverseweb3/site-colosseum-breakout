@@ -462,6 +462,9 @@ export function useTokenTransfer(
   const destinationToken = useWeb3Store((state) => state.destinationToken);
   // Get the transaction details for slippage
   const transactionDetails = useWeb3Store((state) => state.transactionDetails);
+  const receiveAddress = useWeb3Store(
+    (state) => state.transactionDetails.receiveAddress,
+  );
 
   const latestRequestIdRef = useRef<number>(0);
 
@@ -875,7 +878,7 @@ export function useTokenTransfer(
       const result = await executeEvmSwap({
         quote: quoteData![0],
         swapperAddress: activeWallet!.address,
-        destinationAddress: activeWallet!.address, // Usually same as swapper
+        destinationAddress: receiveAddress || activeWallet!.address, // Usually same as swapper
         sourceToken: sourceToken!.address,
         amount: amount,
         referrerAddresses: null,
