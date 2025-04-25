@@ -367,6 +367,7 @@ export function TransactionDetails({
               <Switch
                 checked={isGasDropEnabled}
                 onCheckedChange={setIsGasDropEnabled}
+                className="data-[state=checked]:bg-sky-500 data-[state=unchecked]:bg-zinc-800 focus-visible:ring-sky-400"
               />
             </div>
           </div>
@@ -380,7 +381,11 @@ export function TransactionDetails({
                   min={0}
                   max={100}
                   step={1}
-                  className="w-full"
+                  className="w-full 
+                          [&_.bg-primary]:bg-sky-500 
+                          [&_[role=slider]]:border-zinc-900 
+                          [&_[role=slider]]:bg-sky-500
+                          "
                 />
               </div>
 
