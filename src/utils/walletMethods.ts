@@ -522,12 +522,7 @@ export function useTokenTransfer(
     let timeoutId: NodeJS.Timeout;
 
     const fetchQuote = async () => {
-      if (!isValid) {
-        failQuote();
-        return;
-      }
-      // Reset if no valid amount
-      if (!amount || parseFloat(amount) <= 0) {
+      if (!isValid || !amount || parseFloat(amount) <= 0) {
         failQuote();
         return;
       }
@@ -551,8 +546,6 @@ export function useTokenTransfer(
 
       try {
         let quotes: Quote[] = [];
-
-        // Get current slippage in basis points
         const slippageBps = getSlippageBps();
 
         if (options.type === "swap" && sourceToken && destinationToken) {
@@ -577,173 +570,191 @@ export function useTokenTransfer(
         // Check if this is still the latest request
         if (currentRequestId !== latestRequestIdRef.current) {
           console.log(`Ignoring stale response for amount: ${amount}`);
-          return; // Ignore stale responses
+          return;
         }
 
         setQuoteData(quotes);
 
         if (quotes && quotes.length > 0) {
-          // Cast the quote to ExtendedQuote to access additional properties
           const quote = quotes[0] as ExtendedQuote;
-          const expectedAmountOut = quote.expectedAmountOut;
           const inputAmount = parseFloat(amount);
-          const outputAmount = expectedAmountOut;
+          const outputAmount = quote.expectedAmountOut;
 
           // Extract ETA seconds if available
           if (quote.etaSeconds !== undefined) {
             setEstimatedTimeSeconds(quote.etaSeconds);
-            console.log(`Estimated time: ${quote.etaSeconds} seconds`);
           } else {
             setEstimatedTimeSeconds(null);
           }
 
-          // Calculate and set fee information
-          // Protocol fee in BPS
-          if (quote.protocolBps !== undefined) {
-            setProtocolFeeBps(quote.protocolBps);
+          // ACCURATE USD CALCULATION LOGIC
 
-            // Calculate protocol fee in USD
-            const protocolFeeUsdValue =
-              inputAmount * (quote.protocolBps / 10000);
-            setProtocolFeeUsd(parseFloat(protocolFeeUsdValue.toFixed(6)));
+          // ACCURATE USD CALCULATION LOGIC
 
-            console.log(
-              `Protocol fee: ${quote.protocolBps} BPS (${protocolFeeUsdValue.toFixed(6)} USD)`,
-            );
+          // First, establish destination token price in USD
+          let destinationPriceUsd: number | null = null;
+          if (quote.toTokenPrice !== undefined && quote.toTokenPrice !== null) {
+            destinationPriceUsd = quote.toTokenPrice;
+            setDestinationTokenPrice(destinationPriceUsd);
           } else {
-            setProtocolFeeBps(null);
-            setProtocolFeeUsd(null);
-          }
-
-          // Relayer fee in USD
-          let relayerFee = null;
-          if (
-            quote.clientRelayerFeeSuccess !== undefined &&
-            quote.clientRelayerFeeSuccess !== null
-          ) {
-            relayerFee = quote.clientRelayerFeeSuccess;
-          } else if (
-            quote.clientRelayerFeeRefund !== undefined &&
-            quote.clientRelayerFeeRefund !== null
-          ) {
-            relayerFee = quote.clientRelayerFeeRefund;
-          }
-
-          if (relayerFee !== null) {
-            setRelayerFeeUsd(parseFloat(relayerFee.toFixed(6)));
-            console.log(`Relayer fee: ${relayerFee.toFixed(6)} USD`);
-          } else {
-            setRelayerFeeUsd(null);
-          }
-
-          // Calculate total fee - the difference between input and expected output
-          const totalFee = inputAmount - outputAmount;
-
-          if (!isNaN(totalFee)) {
-            setTotalFeeUsd(parseFloat(totalFee.toFixed(6)));
-            console.log(`Total fee: ${totalFee.toFixed(6)} USD`);
-          } else {
-            setTotalFeeUsd(null);
-          }
-
-          // Extract token prices and calculate USD values
-          // Source token price from the price field
-          if (quote.price !== undefined) {
-            // Source token price is always from the price field
-            setSourceTokenPrice(quote.price);
-            console.log(`Source token price: ${quote.price}`);
-
-            // Calculate USD value of source amount
-            if (!isNaN(inputAmount)) {
-              const sourceAmountUsdValue = inputAmount * quote.price;
-              setSourceAmountUsd(parseFloat(sourceAmountUsdValue.toFixed(2)));
-              console.log(
-                `Source amount in USD: ${sourceAmountUsdValue.toFixed(2)}`,
-              );
-            } else {
-              setSourceAmountUsd(null);
-            }
-
-            // For destination token price, check if same chain or if toTokenPrice exists
-            const isSameChain = quote.fromChain === quote.toChain;
-
-            if (isSameChain || quote.toTokenPrice === undefined) {
-              // If same chain or toTokenPrice missing, use quote.price for destination token too
-              setDestinationTokenPrice(quote.price);
-              console.log(
-                `Destination token price (using source price): ${quote.price}`,
-              );
-
-              // Calculate USD value of destination amount using the same price
-              if (!isNaN(outputAmount)) {
-                const destinationAmountUsdValue = outputAmount * quote.price;
-                setDestinationAmountUsd(
-                  parseFloat(destinationAmountUsdValue.toFixed(2)),
-                );
-                console.log(
-                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
-                );
-              } else {
-                setDestinationAmountUsd(null);
-              }
-            } else {
-              // Different chains and toTokenPrice exists, use toTokenPrice for destination
-              setDestinationTokenPrice(quote.toTokenPrice);
-              console.log(`Destination token price: ${quote.toTokenPrice}`);
-
-              // Calculate USD value of destination amount
-              if (!isNaN(outputAmount)) {
-                const destinationAmountUsdValue =
-                  outputAmount * quote.toTokenPrice;
-                setDestinationAmountUsd(
-                  parseFloat(destinationAmountUsdValue.toFixed(2)),
-                );
-                console.log(
-                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
-                );
-              } else {
-                setDestinationAmountUsd(null);
-              }
-            }
-          } else {
-            // No price information available
-            setSourceTokenPrice(null);
-            setSourceAmountUsd(null);
             setDestinationTokenPrice(null);
+          }
+
+          // Calculate output USD amount
+          let outputAmountUsd: number | null = null;
+          if (destinationPriceUsd !== null) {
+            outputAmountUsd = outputAmount * destinationPriceUsd;
+            setDestinationAmountUsd(parseFloat(outputAmountUsd.toFixed(2)));
+          } else {
             setDestinationAmountUsd(null);
           }
 
-          // For bridging, we use the source token's decimals
+          // For source token price in USD, apply special logic
+          let sourcePriceUsd: number | null = null;
+          let inputAmountUsd: number | null = null;
+
+          // Special handling for known stablecoins
+          const isStablecoin =
+            sourceToken?.ticker &&
+            ["USDC", "USDT", "DAI", "BUSD", "TUSD", "USDP", "GUSD"].includes(
+              sourceToken.ticker.toUpperCase(),
+            );
+
+          if (isStablecoin) {
+            // For stablecoins, use 1.0 USD price
+            sourcePriceUsd = 1.0;
+            inputAmountUsd = inputAmount; // 1:1 ratio
+
+            console.log(
+              `Stablecoin detected (${sourceToken?.ticker}): Using $1.00 price for USD calculations`,
+            );
+          }
+          // If we have both output amount and destination price, we can calculate backward
+          else if (outputAmountUsd !== null) {
+            // Calculate the source token's USD price based on the relationship:
+            // inputAmount * sourcePriceUsd = outputAmount * destinationPriceUsd + fees
+
+            // Estimate fees
+            const protocolFeePercent = quote.protocolBps
+              ? quote.protocolBps / 10000
+              : 0.0003; // Default to 0.03%
+
+            let relayerFeeUsd = 0;
+            if (
+              quote.clientRelayerFeeRefund !== undefined &&
+              quote.clientRelayerFeeRefund !== null
+            ) {
+              relayerFeeUsd = quote.clientRelayerFeeRefund;
+            } else if (
+              quote.clientRelayerFeeSuccess !== undefined &&
+              quote.clientRelayerFeeSuccess !== null
+            ) {
+              relayerFeeUsd = quote.clientRelayerFeeSuccess;
+            }
+
+            // Calculate slippage impact from the difference between min and expected amounts
+            const slippagePercent =
+              quote.minAmountOut !== undefined
+                ? (quote.expectedAmountOut - quote.minAmountOut) /
+                  quote.expectedAmountOut
+                : 0;
+
+            // For cross-chain swaps, add a small buffer for additional costs
+            const isXChain = quote.fromChain !== quote.toChain;
+            const additionalFeesPercent = isXChain ? 0.01 : 0;
+
+            // Calculate total fee percentage
+            const totalFeePercent =
+              protocolFeePercent + slippagePercent / 2 + additionalFeesPercent;
+
+            // Calculate total input value needed including fees
+            inputAmountUsd =
+              outputAmountUsd / (1 - totalFeePercent) + relayerFeeUsd;
+
+            // Derive source token USD price
+            sourcePriceUsd = inputAmountUsd / inputAmount;
+          } else {
+            // If we don't have enough information, we can't calculate
+            inputAmountUsd = null;
+          }
+
+          setSourceTokenPrice(sourcePriceUsd);
+          setSourceAmountUsd(
+            inputAmountUsd !== null
+              ? parseFloat(inputAmountUsd.toFixed(2))
+              : null,
+          );
+
+          // 4. Calculate consolidated fee
+          if (inputAmountUsd !== null && outputAmountUsd !== null) {
+            // The total fee is the difference between input and output USD values
+            const totalFeeUsdValue = Math.max(
+              0,
+              inputAmountUsd - outputAmountUsd,
+            );
+            setTotalFeeUsd(parseFloat(totalFeeUsdValue.toFixed(6)));
+
+            // Log the fee calculation for transparency
+            console.log(
+              `Fee calculation: Input ${inputAmountUsd.toFixed(2)} - Output ${outputAmountUsd.toFixed(2)} = Fee ${totalFeeUsdValue.toFixed(6)}`,
+            );
+
+            // Store protocol fee for reference
+            if (quote.protocolBps !== undefined) {
+              const protocolFeeUsdValue =
+                inputAmountUsd * (quote.protocolBps / 10000);
+              setProtocolFeeUsd(parseFloat(protocolFeeUsdValue.toFixed(6)));
+              setProtocolFeeBps(quote.protocolBps);
+            }
+
+            // Track relayer fee if available
+            let relayerFee = null;
+            if (
+              quote.clientRelayerFeeSuccess !== undefined &&
+              quote.clientRelayerFeeSuccess !== null
+            ) {
+              relayerFee = quote.clientRelayerFeeSuccess;
+            } else if (
+              quote.clientRelayerFeeRefund !== undefined &&
+              quote.clientRelayerFeeRefund !== null
+            ) {
+              relayerFee = quote.clientRelayerFeeRefund;
+            }
+
+            if (relayerFee !== null) {
+              setRelayerFeeUsd(parseFloat(relayerFee.toFixed(6)));
+            } else {
+              setRelayerFeeUsd(null);
+            }
+          } else {
+            setTotalFeeUsd(null);
+            setProtocolFeeUsd(null);
+            setProtocolFeeBps(null);
+            setRelayerFeeUsd(null);
+          }
+
+          // Format output amount for display
           const token =
             options.type === "swap" ? destinationToken! : sourceToken!;
           const decimals = token.decimals || 6;
-
-          const formattedAmount = parseFloat(
-            expectedAmountOut.toString(),
-          ).toFixed(Math.min(decimals, 6));
-
+          const formattedAmount = parseFloat(outputAmount.toString()).toFixed(
+            Math.min(decimals, 6),
+          );
           setReceiveAmount(formattedAmount);
 
           console.log(`${options.type.toUpperCase()} Quote Updated:`, {
-            requestId: currentRequestId,
-            amount: amount,
-            slippageBps: slippageBps,
-            raw: expectedAmountOut,
-            formatted: formattedAmount,
-            etaSeconds: quote.etaSeconds,
-            protocolBps: quote.protocolBps,
-            relayerFee: relayerFee,
-            totalFee: totalFee,
-            sourceTokenPrice: sourceTokenPrice,
-            destinationTokenPrice: destinationTokenPrice,
-            sourceAmountUsd: sourceAmountUsd,
-            destinationAmountUsd: destinationAmountUsd,
+            inputAmount,
+            outputAmount,
+            sourceTokenPrice: sourcePriceUsd,
+            destinationTokenPrice: destinationPriceUsd,
+            sourceAmountUsd: inputAmountUsd?.toFixed(2),
+            destinationAmountUsd: outputAmountUsd?.toFixed(2),
+            totalFeeUsd: totalFeeUsd?.toFixed(6),
           });
         } else {
           failQuote();
         }
       } catch (error: unknown) {
-        // Error handling code unchanged...
         // Check if this is still the latest request
         if (currentRequestId !== latestRequestIdRef.current) {
           return; // Ignore errors from stale requests
@@ -758,17 +769,10 @@ export function useTokenTransfer(
           typeof error.message === "string"
         ) {
           errorMessage = error.message;
-          console.log("Using error.message:", errorMessage);
-
-          if ("code" in error && typeof error.code === "number") {
-            console.log("Error code:", error.code);
-          }
         } else if (error instanceof Error) {
           errorMessage = error.message;
-          console.log("Using Error.message:", errorMessage);
         } else if (typeof error === "string") {
           errorMessage = error;
-          console.log("Using string error:", errorMessage);
         }
 
         toast.error(`Error: ${errorMessage}`);
