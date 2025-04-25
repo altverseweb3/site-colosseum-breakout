@@ -13,76 +13,152 @@ function getEthersProvider(): ethers.BrowserProvider {
   return new ethers.BrowserProvider(window.ethereum);
 }
 
-export async function connectMetamask(): Promise<WalletInfo | null> {
-  if (!window.ethereum) {
-    throw new Error("Metamask not installed");
-  }
+export async function connectWallet(
+  type: WalletType,
+): Promise<WalletInfo | null> {
+  // For MetaMask, we need to use a different approach
+  debugger;
+  if (type === WalletType.METAMASK) {
+    // Access MetaMask directly if possible
+    if (window.ethereum?.isMetaMask) {
+      try {
+        // This forces MetaMask to prompt the user explicitly
+        await window.ethereum.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }],
+        });
 
-  try {
-    const accounts = await window.ethereum.request<string[]>({
-      method: "eth_requestAccounts",
-    });
+        // Continue with the connection
+        const accounts = await window.ethereum.request<string[]>({
+          method: "eth_requestAccounts",
+        });
 
-    const chainId = await window.ethereum.request<string>({
-      method: "eth_chainId",
-    });
+        const chainId = await window.ethereum.request<string>({
+          method: "eth_chainId",
+        });
 
-    if (!accounts || accounts.length === 0 || !accounts[0]) {
-      throw new Error("No accounts found");
-    }
+        // Rest of your connection logic
+        if (!accounts || accounts.length === 0 || !accounts[0]) {
+          throw new Error("No accounts found");
+        }
 
-    const address = accounts[0];
+        const address = accounts[0];
 
-    if (!chainId) {
-      throw new Error("No chainId found");
-    }
+        if (!chainId) {
+          throw new Error("No chainId found");
+        }
 
-    const walletInfo: WalletInfo = {
-      type: WalletType.METAMASK,
-      name: "MetaMask",
-      address,
-      chainId: parseInt(chainId, 16),
-    };
+        const walletInfo: WalletInfo = {
+          type: WalletType.METAMASK,
+          name: "MetaMask",
+          address,
+          chainId: parseInt(chainId, 16),
+        };
 
-    // Update the store immediately on connection
-    const store = useWeb3Store.getState();
-    store.addWallet(walletInfo);
+        // Update store and set up listeners
+        const store = useWeb3Store.getState();
+        store.addWallet(walletInfo);
 
-    // Set up account change listener
-    window.ethereum.on("accountsChanged", (accounts: unknown) => {
-      const store = useWeb3Store.getState();
-      const newAccounts = accounts as string[];
-      if (!newAccounts || newAccounts.length === 0) {
-        // MetaMask was locked or disconnected
-        store.removeWallet(WalletType.METAMASK);
-      } else {
-        // Account was switched
-        store.updateWalletAddress(WalletType.METAMASK, newAccounts[0]);
+        // Set up listeners (use the same as before)
+        window.ethereum.on("accountsChanged", (accounts: unknown) => {
+          const store = useWeb3Store.getState();
+          const newAccounts = accounts as string[];
+          if (!newAccounts || newAccounts.length === 0) {
+            store.removeWallet(type);
+          } else {
+            store.updateWalletAddress(type, newAccounts[0]);
+          }
+        });
+
+        window.ethereum.on("chainChanged", (chainId: unknown) => {
+          const store = useWeb3Store.getState();
+          store.updateWalletChainId(type, parseInt(chainId as string, 16));
+        });
+
+        window.ethereum.on("disconnect", () => {
+          const store = useWeb3Store.getState();
+          store.removeWallet(type);
+        });
+
+        return walletInfo;
+      } catch (error) {
+        console.error("Error connecting to MetaMask:", error);
+        return null;
       }
-    });
+    } else {
+      throw new Error("MetaMask not installed");
+    }
+  }
+  // For Trust Wallet or other wallets
+  else {
+    if (!window.ethereum) {
+      throw new Error("Web3 wallet not installed");
+    }
 
-    // Set up chain change listener
-    window.ethereum.on("chainChanged", (chainId: unknown) => {
+    // For Trust Wallet
+    if (type === WalletType.TRUST) {
+      throw new Error("Trust Wallet not installed");
+    }
+
+    try {
+      const accounts = await window.ethereum.request<string[]>({
+        method: "eth_requestAccounts",
+      });
+
+      const chainId = await window.ethereum.request<string>({
+        method: "eth_chainId",
+      });
+
+      if (!accounts || accounts.length === 0 || !accounts[0]) {
+        throw new Error("No accounts found");
+      }
+
+      const address = accounts[0];
+
+      if (!chainId) {
+        throw new Error("No chainId found");
+      }
+
+      // Create wallet info
+      const walletInfo: WalletInfo = {
+        type: type,
+        name: "Trust Wallet",
+        address,
+        chainId: parseInt(chainId, 16),
+      };
+
+      // Update the store and set listeners (same as before)
       const store = useWeb3Store.getState();
-      store.updateWalletChainId(
-        WalletType.METAMASK,
-        parseInt(chainId as string, 16),
-      );
-    });
+      store.addWallet(walletInfo);
 
-    // Set up disconnect listener
-    window.ethereum.on("disconnect", () => {
-      const store = useWeb3Store.getState();
-      store.removeWallet(WalletType.METAMASK);
-    });
+      // Set up listeners
+      window.ethereum.on("accountsChanged", (accounts: unknown) => {
+        const store = useWeb3Store.getState();
+        const newAccounts = accounts as string[];
+        if (!newAccounts || newAccounts.length === 0) {
+          store.removeWallet(type);
+        } else {
+          store.updateWalletAddress(type, newAccounts[0]);
+        }
+      });
 
-    return walletInfo;
-  } catch (error) {
-    console.error("Error connecting to MetaMask:", error);
-    return null;
+      window.ethereum.on("chainChanged", (chainId: unknown) => {
+        const store = useWeb3Store.getState();
+        store.updateWalletChainId(type, parseInt(chainId as string, 16));
+      });
+
+      window.ethereum.on("disconnect", () => {
+        const store = useWeb3Store.getState();
+        store.removeWallet(type);
+      });
+
+      return walletInfo;
+    } catch (error) {
+      console.error(`Error connecting to ${type}:`, error);
+      return null;
+    }
   }
 }
-
 export async function disconnectMetamask(): Promise<void> {
   try {
     if (window.ethereum) {
@@ -115,6 +191,7 @@ export const truncateAddress = (address: string) => {
  * @returns Promise resolving to true if the chain is correct, or false if there was an error
  */
 export async function ensureCorrectChain(targetChain: Chain): Promise<boolean> {
+  debugger;
   const store = useWeb3Store.getState();
   const activeWallet = store.activeWallet;
 

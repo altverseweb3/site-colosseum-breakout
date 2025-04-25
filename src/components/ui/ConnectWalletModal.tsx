@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/StyledDialog";
 import { Button } from "@/components/ui/Button";
-import { connectMetamask } from "@/utils/walletMethods";
+import { connectWallet } from "@/utils/walletMethods";
 import { toast } from "sonner";
 import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
@@ -42,23 +42,15 @@ export const ConnectWalletModal = ({
       icon: "/wallets/metamask.svg",
       disabled: false,
       background: "bg-[#E27625]/20",
-      connectMethod: connectMetamask,
+      connectMethod: () => connectWallet(WalletType.METAMASK),
     },
     {
-      id: WalletType.COINBASE,
-      name: "Coinbase",
+      id: WalletType.TRUST,
+      name: "Trust Wallet",
       icon: "/wallets/coinbase.svg",
-      disabled: true,
+      disabled: false,
       background: "bg-[#1951E3]/20",
-      connectMethod: async () => null,
-    },
-    {
-      id: WalletType.WALLET_CONNECT,
-      name: "WalletConnect",
-      icon: "/wallets/walletconnect.svg",
-      disabled: true,
-      background: "bg-[#217FFC]/20",
-      connectMethod: async () => null,
+      connectMethod: () => connectWallet(WalletType.TRUST),
     },
   ];
 
