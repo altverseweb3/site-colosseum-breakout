@@ -145,9 +145,9 @@ export function TransactionDetails({
   // Update the gas drop in the store when relevant values change
   useEffect(() => {
     // Set gas drop to 0 if switch is off
-    const dropValue = isGasDropEnabled ? actualGasDropAmount : 0;
+    const dropValue = isGasDropEnabled ? Number(formattedGasDropAmount) : 0;
     setGasDrop(dropValue);
-  }, [isGasDropEnabled, actualGasDropAmount, setGasDrop]);
+  }, [isGasDropEnabled, formattedGasDropAmount, setGasDrop]);
 
   // ─── Event handlers ─────────────────────────────────────────────────────────
 
