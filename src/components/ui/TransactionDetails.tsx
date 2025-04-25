@@ -13,6 +13,8 @@ import useWeb3Store, {
   useTransactionDetails,
   useSetSlippageValue,
   useSetReceiveAddress,
+  useSetGasDrop,
+  useDestinationChain,
 } from "@/store/web3Store";
 
 interface TransactionDetailsProps {
@@ -36,6 +38,8 @@ export function TransactionDetails({
   const transactionDetails = useTransactionDetails();
   const setSlippageValue = useSetSlippageValue();
   const setReceiveAddress = useSetReceiveAddress();
+  const setGasDrop = useSetGasDrop();
+  const destinationChain = useDestinationChain();
 
   // ─── Local state ─────────────────────────────────────────────────────────────
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(isOpen || false);
@@ -48,6 +52,13 @@ export function TransactionDetails({
   // ─── Gas Drop ─────────────────────────────────────────────────────────────
   const [isGasDropEnabled, setIsGasDropEnabled] = useState<boolean>(false);
   const [gasDropValue, setGasDropValue] = useState<number>(50);
+  // Calculate the actual gas drop amount
+  const maxGasDrop = destinationChain?.gasDrop || 0;
+  const actualGasDropAmount = (gasDropValue / 100) * maxGasDrop;
+  // Format the gas drop display amount to 4 decimal places
+  const formattedGasDropAmount = actualGasDropAmount.toFixed(4);
+  // Get the destination chain symbol for display
+  const gasDropSymbol = destinationChain?.symbol || "ETH";
 
   // Ref for click‐outside on receive address input
   const receiveAddressInputRef = useRef<HTMLInputElement>(null);
@@ -130,6 +141,13 @@ export function TransactionDetails({
       setIsDetailsExpanded(isOpen);
     }
   }, [isOpen]);
+
+  // Update the gas drop in the store when relevant values change
+  useEffect(() => {
+    // Set gas drop to 0 if switch is off
+    const dropValue = isGasDropEnabled ? actualGasDropAmount : 0;
+    setGasDrop(dropValue);
+  }, [isGasDropEnabled, actualGasDropAmount, setGasDrop]);
 
   // ─── Event handlers ─────────────────────────────────────────────────────────
 
@@ -366,7 +384,12 @@ export function TransactionDetails({
             <div className="flex justify-end">
               <Switch
                 checked={isGasDropEnabled}
-                onCheckedChange={setIsGasDropEnabled}
+                onCheckedChange={(checked) => {
+                  setIsGasDropEnabled(checked);
+                  if (!checked) {
+                    setGasDrop(0);
+                  }
+                }}
                 className="data-[state=checked]:bg-sky-500 data-[state=unchecked]:bg-zinc-800 focus-visible:ring-sky-400"
               />
             </div>
@@ -382,15 +405,14 @@ export function TransactionDetails({
                   max={100}
                   step={1}
                   className="w-full 
-                          [&_.bg-primary]:bg-sky-500 
-                          [&_[role=slider]]:border-zinc-900 
-                          [&_[role=slider]]:bg-sky-500
-                          "
+                      [&_.bg-primary]:bg-sky-500 
+                      [&_[role=slider]]:border-zinc-900 
+                      [&_[role=slider]]:bg-sky-500
+                      "
                 />
               </div>
-
-              <div className="text-right numeric-input text-zinc-200 sm:text-xs text-[9px]">
-                {gasDropValue}%
+              <div className="text-right numeric-input text-zinc-200 sm:text-xs text-[9px] w-[80px] text-right">
+                {formattedGasDropAmount} {gasDropSymbol}
               </div>
             </div>
           )}

@@ -30,6 +30,7 @@ const useWeb3Store = create<Web3StoreState>()(
       transactionDetails: {
         slippage: "3.25%", // Default slippage value
         receiveAddress: null,
+        gasDrop: 0,
       },
 
       // tokens
@@ -72,6 +73,15 @@ const useWeb3Store = create<Web3StoreState>()(
           transactionDetails: {
             ...state.transactionDetails,
             receiveAddress: address,
+          },
+        }));
+      },
+
+      setGasDrop: (gasDrop: number) => {
+        set((state) => ({
+          transactionDetails: {
+            ...state.transactionDetails,
+            gasDrop: gasDrop,
           },
         }));
       },
@@ -654,6 +664,10 @@ export const useSetSlippageValue = () => {
 
 export const useSetReceiveAddress = () => {
   return useWeb3Store((state) => state.setReceiveAddress);
+};
+
+export const useSetGasDrop = () => {
+  return useWeb3Store((state) => state.setGasDrop);
 };
 
 export default useWeb3Store;

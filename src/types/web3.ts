@@ -116,6 +116,7 @@ export interface Web3StoreState {
   // Transaction details actions
   setSlippageValue: (value: "auto" | string) => void;
   setReceiveAddress: (address: string | null) => void;
+  setGasDrop: (gasDrop: number) => void;
 
   updateTokenBalances: (
     chainId: number,
