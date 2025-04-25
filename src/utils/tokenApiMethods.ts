@@ -95,19 +95,12 @@ export async function getPricesAndBalancesForChain(
   chainType: "source" | "destination" = "source",
 ): Promise<boolean> {
   try {
-    console.log(`Starting fetch for ${chainType} chain (ID: ${chainId})`);
-
     // Get tokens for this chain
     const tokens = useWeb3Store.getState().getTokensForChain(chainId);
     if (!tokens.length) {
       console.warn(`No tokens found for chain ${chainId} (${chainType})`);
       return false;
     }
-
-    // Prepare price fetching
-    console.log(
-      `Fetching prices for ${tokens.length} tokens on ${chainType} chain`,
-    );
 
     const tokenAddresses: TokenAddressInfo[] = tokens
       .map((token) => {
@@ -133,9 +126,6 @@ export async function getPricesAndBalancesForChain(
     const pricePromise = (async () => {
       const batchPromises = batches.map(async (batch, i) => {
         try {
-          console.log(
-            `Processing price batch ${i + 1}/${batches.length} for ${chainType} chain`,
-          );
           const response = await evmTokenApi.getTokenPrices({
             addresses: batch,
           });
@@ -159,7 +149,6 @@ export async function getPricesAndBalancesForChain(
       });
 
       await Promise.all(batchPromises);
-      console.log(`All price batches processed for ${chainType} chain`);
     })();
 
     // Start the balance fetch operation concurrently
@@ -167,10 +156,6 @@ export async function getPricesAndBalancesForChain(
 
     if (userAddress) {
       balancePromise = (async () => {
-        console.log(
-          `Fetching balances for address ${userAddress} on ${chainType} chain`,
-        );
-
         const chain = getChainByChainId(chainId);
         if (!chain) {
           console.error(
@@ -258,9 +243,6 @@ export async function getPricesAndBalancesForChain(
         .updateTokenBalances(chainId, userAddress, processedBalances);
     }
 
-    console.log(
-      `Successfully completed fetch for ${chainType} chain (ID: ${chainId})`,
-    );
     return true;
   } catch (error) {
     console.error(
