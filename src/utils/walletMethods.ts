@@ -571,7 +571,7 @@ export function useTokenTransfer(
         const gasDrop = getGasDrop();
 
         // Set referrer
-        const referrer = "0x95C0029426afa8E47a71b8E6b251f5B70511e599";
+        const referrer = "9tks3cKdFxDwBPiyoYy9Wi4gQ29T9Qizniq7kDW86kNh";
         const referrerBps = 50;
 
         if (options.type === "swap" && sourceToken && destinationToken) {
@@ -884,7 +884,7 @@ export function useTokenTransfer(
       const gasDrop = getGasDrop();
 
       // Set referrer
-      const referrer = "0x95C0029426afa8E47a71b8E6b251f5B70511e599";
+      const referrer = "9tks3cKdFxDwBPiyoYy9Wi4gQ29T9Qizniq7kDW86kNh";
       const referrerBps = 50;
 
       if (options.type === "swap" && sourceToken && destinationToken) {
@@ -915,7 +915,6 @@ export function useTokenTransfer(
         sourceToken: sourceToken!.address,
         amount: amount,
         referrerAddresses: {
-          evm: "0x95C0029426afa8E47a71b8E6b251f5B70511e599",
           solana: "9tks3cKdFxDwBPiyoYy9Wi4gQ29T9Qizniq7kDW86kNh",
         },
         signer,
