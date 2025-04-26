@@ -1,4 +1,3 @@
-// src/utils/tokenApiMethods.ts
 import { evmTokenApi } from "@/api/evmTokenApi";
 import { getChainByChainId } from "@/config/chains";
 import useWeb3Store from "@/store/web3Store";
@@ -144,7 +143,14 @@ export async function getPricesAndBalancesForChain(
         );
         // Update store with empty balances
         useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
-        return true; // Successfully determined there are no balances
+
+        // If there are no balances but we're on source chain and need to fetch sourceToken price,
+        // continue with an empty balance array instead of returning early
+        if (chainType === "source") {
+          balanceData = [];
+        } else {
+          return true; // Successfully determined there are no balances (for destination chain)
+        }
       }
       console.log(
         `Found ${balanceData.length} token balances for ${userAddress} on ${chainType} chain.`,
@@ -156,23 +162,41 @@ export async function getPricesAndBalancesForChain(
       return false;
     }
 
-    // 3. Prepare Addresses for Price Fetching (Only those with balances)
+    // 3. Prepare Addresses for Price Fetching
     const addressesWithBalance = balanceData.map((balance) =>
       balance.contractAddress.toLowerCase(),
     );
 
-    // Filter unique addresses in case the balance API returns duplicates (unlikely but safe)
+    // Filter unique addresses in case the balance API returns duplicates
     const uniqueAddresses = [...new Set(addressesWithBalance)];
+
+    // Add source token to the price fetch list if we're on the source chain
+    if (chainType === "source") {
+      const store = useWeb3Store.getState();
+      const sourceToken = store.sourceToken;
+
+      if (sourceToken && sourceToken.chainId === chainId) {
+        const sourceTokenAddress = sourceToken.address.toLowerCase();
+
+        // Only add if not already in the list
+        if (!uniqueAddresses.includes(sourceTokenAddress)) {
+          uniqueAddresses.push(sourceTokenAddress);
+          console.log(
+            `Added source token ${sourceTokenAddress} to price fetch list even though it has no balance`,
+          );
+        }
+      }
+    }
 
     const tokenAddressesForPriceFetch: TokenAddressInfo[] = uniqueAddresses.map(
       (address) => ({
         network: networkName,
-        address: address, // Ensure correct casing if API is sensitive, though usually lowercase is fine
+        address: address,
       }),
     );
 
     console.log(
-      `Workspaceing prices for ${tokenAddressesForPriceFetch.length} tokens with balances on ${chainType} chain`,
+      `Fetching prices for ${tokenAddressesForPriceFetch.length} tokens on ${chainType} chain`,
     );
 
     // 4. Fetch Prices in Batches
@@ -216,6 +240,13 @@ export async function getPricesAndBalancesForChain(
 
     // 5. Update Token Prices in the Store
     if (allFetchedPrices.length > 0) {
+      if (
+        allFetchedPrices.find(
+          (price) =>
+            price.address === "0xb8c77482e45f1f44de1745f52c74426c631bdd52",
+        )
+      ) {
+      }
       // Get the latest state before updating to potentially avoid race conditions
       // Although less critical now as balance processing waits for prices
       useWeb3Store.getState().updateTokenPrices(allFetchedPrices);

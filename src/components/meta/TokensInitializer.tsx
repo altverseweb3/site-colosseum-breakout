@@ -16,6 +16,7 @@ const TokenInitializer: React.FC = () => {
   const sourceChain = useWeb3Store((state) => state.sourceChain);
   const destinationChain = useWeb3Store((state) => state.destinationChain);
   const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const sourceToken = useWeb3Store((state) => state.sourceToken);
 
   // Track whether the user is active or idle
   const [isIdle, setIsIdle] = useState(false);
@@ -50,7 +51,14 @@ const TokenInitializer: React.FC = () => {
       // Clean up interval when component unmounts or dependencies change
       return () => clearInterval(intervalId);
     }
-  }, [sourceChain, destinationChain, tokenCount, activeWallet, isIdle]);
+  }, [
+    sourceChain,
+    destinationChain,
+    tokenCount,
+    activeWallet,
+    isIdle,
+    sourceToken,
+  ]);
 
   return null;
 };

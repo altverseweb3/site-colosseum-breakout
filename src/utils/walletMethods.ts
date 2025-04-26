@@ -517,7 +517,7 @@ export function useTokenTransfer(
 
   const isButtonDisabled: boolean = !isValid || isProcessing;
 
-  // Update this useEffect to include fee calculation
+  // Update this useEffect to use source token price for calculations
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -605,25 +605,149 @@ export function useTokenTransfer(
             setEstimatedTimeSeconds(null);
           }
 
-          // Calculate and set fee information
-          // Protocol fee in BPS
-          if (quote.protocolBps !== undefined) {
-            setProtocolFeeBps(quote.protocolBps);
+          // Use source token price from token store instead of quote
+          // This is the key change we're making to improve accuracy
+          if (sourceToken && sourceToken.priceUsd) {
+            const sourceTokenPriceUsd =
+              typeof sourceToken.priceUsd === "string"
+                ? parseFloat(sourceToken.priceUsd)
+                : sourceToken.priceUsd;
 
-            // Calculate protocol fee in USD
-            const protocolFeeUsdValue =
-              inputAmount * (quote.protocolBps / 10000);
-            setProtocolFeeUsd(parseFloat(protocolFeeUsdValue.toFixed(6)));
-
+            setSourceTokenPrice(sourceTokenPriceUsd);
             console.log(
-              `Protocol fee: ${quote.protocolBps} BPS (${protocolFeeUsdValue.toFixed(6)} USD)`,
+              `Using source token price from store: ${sourceTokenPriceUsd}`,
             );
+
+            // Calculate source amount in USD using store price data
+            if (!isNaN(inputAmount) && !isNaN(sourceTokenPriceUsd)) {
+              const calculatedSourceAmountUsd =
+                inputAmount * sourceTokenPriceUsd;
+              setSourceAmountUsd(
+                parseFloat(calculatedSourceAmountUsd.toFixed(2)),
+              );
+              console.log(
+                `Source amount in USD (using store price): ${calculatedSourceAmountUsd.toFixed(2)}`,
+              );
+
+              // Calculate protocol fee in USD using more accurate price data
+              if (quote.protocolBps !== undefined) {
+                setProtocolFeeBps(quote.protocolBps);
+
+                // Calculate protocol fee in USD using store price
+                const protocolFeeAmount =
+                  inputAmount * (quote.protocolBps / 10000);
+                const protocolFeeUsdValue =
+                  protocolFeeAmount * sourceTokenPriceUsd;
+                setProtocolFeeUsd(parseFloat(protocolFeeUsdValue.toFixed(6)));
+
+                console.log(
+                  `Protocol fee: ${quote.protocolBps} BPS (${protocolFeeUsdValue.toFixed(6)} USD)`,
+                );
+              } else {
+                setProtocolFeeBps(null);
+                setProtocolFeeUsd(null);
+              }
+            } else {
+              setSourceAmountUsd(null);
+              setProtocolFeeUsd(null);
+            }
           } else {
-            setProtocolFeeBps(null);
-            setProtocolFeeUsd(null);
+            console.warn(
+              "Source token price not available in store, falling back to quote data",
+            );
+            // Fall back to quote price if store price is not available
+            if (quote.price !== undefined && quote.price !== null) {
+              setSourceTokenPrice(quote.price);
+
+              if (!isNaN(inputAmount)) {
+                const sourceAmountUsdValue = inputAmount * quote.price;
+                setSourceAmountUsd(parseFloat(sourceAmountUsdValue.toFixed(2)));
+                console.log(
+                  `Source amount in USD (fallback): ${sourceAmountUsdValue.toFixed(2)}`,
+                );
+              } else {
+                setSourceAmountUsd(null);
+              }
+            } else {
+              setSourceTokenPrice(null);
+              setSourceAmountUsd(null);
+            }
           }
 
-          // Relayer fee in USD
+          // Handle destination token price and USD calculation
+          // For destination, we still need to use the quote's toTokenPrice when available
+          // as the store might not have the destination token price yet
+          if (options.type === "swap" || options.type === "bridge") {
+            if (
+              quote.toTokenPrice !== undefined &&
+              quote.toTokenPrice !== null
+            ) {
+              // Use toTokenPrice from quote for destination token
+              setDestinationTokenPrice(quote.toTokenPrice);
+              console.log(
+                `Destination token price from quote: ${quote.toTokenPrice}`,
+              );
+
+              // Calculate destination amount in USD
+              if (!isNaN(outputAmount)) {
+                const destinationAmountUsdValue =
+                  outputAmount * quote.toTokenPrice;
+                setDestinationAmountUsd(
+                  parseFloat(destinationAmountUsdValue.toFixed(2)),
+                );
+                console.log(
+                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
+                );
+              } else {
+                setDestinationAmountUsd(null);
+              }
+            } else if (destinationToken && destinationToken.priceUsd) {
+              // Use destination token price from store if available
+              const destTokenPriceUsd =
+                typeof destinationToken.priceUsd === "string"
+                  ? parseFloat(destinationToken.priceUsd)
+                  : destinationToken.priceUsd;
+
+              setDestinationTokenPrice(destTokenPriceUsd);
+              console.log(
+                `Destination token price from store: ${destTokenPriceUsd}`,
+              );
+
+              if (!isNaN(outputAmount)) {
+                const destinationAmountUsdValue =
+                  outputAmount * destTokenPriceUsd;
+                setDestinationAmountUsd(
+                  parseFloat(destinationAmountUsdValue.toFixed(2)),
+                );
+                console.log(
+                  `Destination amount in USD (using store): ${destinationAmountUsdValue.toFixed(2)}`,
+                );
+              } else {
+                setDestinationAmountUsd(null);
+              }
+            } else if (options.type === "swap" && sourceTokenPrice) {
+              // Same chain or no specific price - use source token price as fallback
+              setDestinationTokenPrice(sourceTokenPrice);
+
+              if (!isNaN(outputAmount)) {
+                const destinationAmountUsdValue =
+                  outputAmount * sourceTokenPrice;
+                setDestinationAmountUsd(
+                  parseFloat(destinationAmountUsdValue.toFixed(2)),
+                );
+                console.log(
+                  `Destination amount in USD (using source price): ${destinationAmountUsdValue.toFixed(2)}`,
+                );
+              } else {
+                setDestinationAmountUsd(null);
+              }
+            } else {
+              setDestinationTokenPrice(null);
+              setDestinationAmountUsd(null);
+            }
+          }
+
+          // Relayer fee in USD (keep as is, it's already in USD)
           let relayerFee = null;
           if (
             quote.clientRelayerFeeSuccess !== undefined &&
@@ -644,81 +768,24 @@ export function useTokenTransfer(
             setRelayerFeeUsd(null);
           }
 
-          // Calculate total fee - the difference between input and expected output
-          const totalFee = inputAmount - outputAmount;
-
-          if (!isNaN(totalFee)) {
-            setTotalFeeUsd(parseFloat(totalFee.toFixed(6)));
-            console.log(`Total fee: ${totalFee.toFixed(6)} USD`);
+          // Calculate total fee
+          if (sourceAmountUsd !== null && destinationAmountUsd !== null) {
+            // Calculate total fee as the difference between input and output USD values
+            const totalFeeValue = sourceAmountUsd - destinationAmountUsd;
+            if (!isNaN(totalFeeValue) && totalFeeValue > 0) {
+              setTotalFeeUsd(parseFloat(totalFeeValue.toFixed(6)));
+              console.log(`Total fee: ${totalFeeValue.toFixed(6)} USD`);
+            } else {
+              // If calculation results in negative or invalid value, fall back to a simpler calculation
+              // Sum of protocol fee and relayer fee if available
+              const fallbackFee = (protocolFeeUsd || 0) + (relayerFeeUsd || 0);
+              setTotalFeeUsd(parseFloat(fallbackFee.toFixed(6)));
+              console.log(
+                `Total fee (fallback): ${fallbackFee.toFixed(6)} USD`,
+              );
+            }
           } else {
             setTotalFeeUsd(null);
-          }
-
-          // Extract token prices and calculate USD values
-          // Source token price from the price field
-          if (quote.price !== undefined) {
-            // Source token price is always from the price field
-            setSourceTokenPrice(quote.price);
-            console.log(`Source token price: ${quote.price}`);
-
-            // Calculate USD value of source amount
-            if (!isNaN(inputAmount)) {
-              const sourceAmountUsdValue = inputAmount * quote.price;
-              setSourceAmountUsd(parseFloat(sourceAmountUsdValue.toFixed(2)));
-              console.log(
-                `Source amount in USD: ${sourceAmountUsdValue.toFixed(2)}`,
-              );
-            } else {
-              setSourceAmountUsd(null);
-            }
-
-            // For destination token price, check if same chain or if toTokenPrice exists
-            const isSameChain = quote.fromChain === quote.toChain;
-
-            if (isSameChain || quote.toTokenPrice === undefined) {
-              // If same chain or toTokenPrice missing, use quote.price for destination token too
-              setDestinationTokenPrice(quote.price);
-              console.log(
-                `Destination token price (using source price): ${quote.price}`,
-              );
-
-              // Calculate USD value of destination amount using the same price
-              if (!isNaN(outputAmount)) {
-                const destinationAmountUsdValue = outputAmount * quote.price;
-                setDestinationAmountUsd(
-                  parseFloat(destinationAmountUsdValue.toFixed(2)),
-                );
-                console.log(
-                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
-                );
-              } else {
-                setDestinationAmountUsd(null);
-              }
-            } else {
-              // Different chains and toTokenPrice exists, use toTokenPrice for destination
-              setDestinationTokenPrice(quote.toTokenPrice);
-              console.log(`Destination token price: ${quote.toTokenPrice}`);
-
-              // Calculate USD value of destination amount
-              if (!isNaN(outputAmount)) {
-                const destinationAmountUsdValue =
-                  outputAmount * quote.toTokenPrice;
-                setDestinationAmountUsd(
-                  parseFloat(destinationAmountUsdValue.toFixed(2)),
-                );
-                console.log(
-                  `Destination amount in USD: ${destinationAmountUsdValue.toFixed(2)}`,
-                );
-              } else {
-                setDestinationAmountUsd(null);
-              }
-            }
-          } else {
-            // No price information available
-            setSourceTokenPrice(null);
-            setSourceAmountUsd(null);
-            setDestinationTokenPrice(null);
-            setDestinationAmountUsd(null);
           }
 
           // For bridging, we use the source token's decimals
@@ -741,7 +808,6 @@ export function useTokenTransfer(
             etaSeconds: quote.etaSeconds,
             protocolBps: quote.protocolBps,
             relayerFee: relayerFee,
-            totalFee: totalFee,
             sourceTokenPrice: sourceTokenPrice,
             destinationTokenPrice: destinationTokenPrice,
             sourceAmountUsd: sourceAmountUsd,

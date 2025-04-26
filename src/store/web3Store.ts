@@ -388,12 +388,24 @@ const useWeb3Store = create<Web3StoreState>()(
       },
 
       updateTokenPrices: (priceResults) => {
-        const { tokenPricesUsd, allTokensList, tokensByCompositeKey } = get();
+        const {
+          tokenPricesUsd,
+          allTokensList,
+          tokensByCompositeKey,
+          sourceToken,
+          destinationToken,
+        } = get();
         // Create a copy of current prices
         const updatedPrices = { ...tokenPricesUsd };
 
         // Create a map to track which tokens have been updated
         const updatedTokens: Record<string, Token> = {};
+
+        // Get source and destination tokens for special handling
+        const selectedTokens = [sourceToken, destinationToken].filter(Boolean);
+        const selectedTokenKeys = selectedTokens.map(
+          (token) => `${token!.chainId}-${token!.address.toLowerCase()}`,
+        );
 
         // Process each price result
         priceResults.forEach((result) => {
@@ -422,12 +434,33 @@ const useWeb3Store = create<Web3StoreState>()(
           const usdPrice = result.prices.find(
             (p: TokenPrice) => p.currency.toLowerCase() === "usd",
           );
+
           if (usdPrice) {
             // Store price in the prices map
             updatedPrices[compositeKey] = usdPrice.value;
+            console.log(
+              `Updating price for token ${tokenAddress} on chain ${chain.chainId}: ${usdPrice.value} USD`,
+            );
 
             // Find token in our collections
-            const token = tokensByCompositeKey[compositeKey];
+            let token = tokensByCompositeKey[compositeKey];
+
+            // Special handling for selected source/destination tokens that might not be in the collections
+            if (!token && selectedTokenKeys.includes(compositeKey)) {
+              // Find the token in our selected tokens
+              const selectedToken = selectedTokens.find(
+                (t) =>
+                  t!.chainId === chain.chainId &&
+                  t!.address.toLowerCase() === tokenAddress,
+              );
+
+              if (selectedToken) {
+                console.log(
+                  `Found selected token not in collections: ${selectedToken.name || tokenAddress}`,
+                );
+                token = selectedToken;
+              }
+            }
 
             if (token) {
               let userBalanceUsd: string | undefined = undefined;
@@ -455,23 +488,70 @@ const useWeb3Store = create<Web3StoreState>()(
                 priceUsd: usdPrice.value, // Store the price in the token object
                 userBalanceUsd,
               };
+
+              console.log(
+                `Updated token ${token.name || tokenAddress} with price: ${usdPrice.value}`,
+              );
             }
           }
         });
 
         // Update tokens in our main list
-        const newTokensList = allTokensList.map((token) => {
+        const newTokensList = [...allTokensList];
+
+        // Update existing tokens in the list
+        for (let i = 0; i < newTokensList.length; i++) {
+          const token = newTokensList[i];
           const compositeKey = `${token.chainId}-${token.address.toLowerCase()}`;
-          return updatedTokens[compositeKey] || token;
-        });
+          if (updatedTokens[compositeKey]) {
+            newTokensList[i] = updatedTokens[compositeKey];
+            // Remove from updatedTokens so we know which ones still need to be added
+            delete updatedTokens[compositeKey];
+          }
+        }
+
+        // Add any tokens that weren't already in the list (selected tokens with prices)
+        const tokensToAdd = Object.values(updatedTokens);
+        if (tokensToAdd.length > 0) {
+          console.log(
+            `Adding ${tokensToAdd.length} new tokens with prices to token list`,
+          );
+          newTokensList.push(...tokensToAdd);
+        }
 
         // Get updated derived collections
         const updatedCollections = updateTokenCollections(newTokensList);
+
+        // Update the sourceToken and destinationToken with new price data if available
+        let updatedSourceToken = sourceToken;
+        let updatedDestinationToken = destinationToken;
+
+        if (sourceToken) {
+          const sourceKey = `${sourceToken.chainId}-${sourceToken.address.toLowerCase()}`;
+          if (updatedTokens[sourceKey]) {
+            updatedSourceToken = updatedTokens[sourceKey];
+            console.log(
+              `Updated source token ${sourceToken.name} with price: ${updatedSourceToken.priceUsd}`,
+            );
+          }
+        }
+
+        if (destinationToken) {
+          const destKey = `${destinationToken.chainId}-${destinationToken.address.toLowerCase()}`;
+          if (updatedTokens[destKey]) {
+            updatedDestinationToken = updatedTokens[destKey];
+            console.log(
+              `Updated destination token ${destinationToken.name} with price: ${updatedDestinationToken.priceUsd}`,
+            );
+          }
+        }
 
         // Update the store
         set({
           tokenPricesUsd: updatedPrices,
           allTokensList: newTokensList,
+          sourceToken: updatedSourceToken,
+          destinationToken: updatedDestinationToken,
           ...updatedCollections,
         });
       },
