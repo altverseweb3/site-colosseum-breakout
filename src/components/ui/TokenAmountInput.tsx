@@ -50,14 +50,11 @@ export function TokenAmountInput({
   }, [tokenBalance, sourceToken?.userBalance]);
 
   useEffect(() => {
-    if (variant === "destination") {
-      debugger;
-      // Update the displayed amount in USD when the amount changes
-      setDisplayedAmountUsd(
-        dollarValue > 0 ? `$${dollarValue.toFixed(2)}` : "$~",
-      );
-    }
-  }, [dollarValue, variant]);
+    // Update the displayed amount in USD when the amount changes
+    setDisplayedAmountUsd(
+      dollarValue > 0 ? `$${dollarValue.toFixed(2)}` : "$-",
+    );
+  }, [dollarValue]);
 
   // Helper function to format balance nicely with abbreviations for large numbers
   const formatBalance = (balance: string): string => {
@@ -132,12 +129,9 @@ export function TokenAmountInput({
         readOnly={readOnly}
       />
       <div className="w-full flex flex-col">
-        {variant === "destination" && (
-          <span className="text-zinc-400 text-sm numeric-input">
-            {displayedAmountUsd}
-          </span>
-        )}
-
+        <span className="text-zinc-400 text-sm numeric-input">
+          {displayedAmountUsd}
+        </span>
         {variant === "source" && (
           <div className="flex justify-end w-full mt-2 gap-2">
             {/* Balance display */}

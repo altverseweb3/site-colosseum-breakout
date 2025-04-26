@@ -187,22 +187,63 @@ const useWeb3Store = create<Web3StoreState>()(
       },
 
       swapChains: () => {
-        set((state) => ({
-          sourceChain: state.destinationChain,
-          destinationChain: state.sourceChain,
-          // Swap tokens along with chains
-          sourceToken: state.destinationToken,
-          destinationToken: state.sourceToken,
-        }));
+        set((state) => {
+          const newSourceToken = state.destinationToken
+            ? {
+                ...state.destinationToken,
+                alwaysLoadPrice: true,
+              }
+            : null;
+
+          const newDestinationToken = state.sourceToken
+            ? {
+                ...state.sourceToken,
+                alwaysLoadPrice: true,
+              }
+            : null;
+
+          return {
+            sourceChain: state.destinationChain,
+            destinationChain: state.sourceChain,
+            sourceToken: newSourceToken,
+            destinationToken: newDestinationToken,
+          };
+        });
       },
 
       // Token selection actions
       setSourceToken: (token: Token | null) => {
         console.log("Setting source token:", token ? token.name : "null");
         set({ sourceToken: token });
+        // Update token collections to set source token to have alwaysLoadPrice to true
+        if (token) {
+          set((state) => {
+            const updatedToken = {
+              ...token,
+              alwaysLoadPrice: true,
+            };
+            const newTokensList = state.allTokensList.map((t) =>
+              t.address === token.address && t.chainId === token.chainId
+                ? updatedToken
+                : t,
+            );
+            const {
+              tokensByCompositeKey: updatedByCompositeKey,
+              tokensByChainId: updatedByChainId,
+              tokensByAddress: updatedByAddress,
+            } = updateTokenCollections(newTokensList);
+            return {
+              allTokensList: newTokensList,
+              tokensByCompositeKey: updatedByCompositeKey,
+              tokensByChainId: updatedByChainId,
+              tokensByAddress: updatedByAddress,
+            };
+          });
+        }
       },
 
       setDestinationToken: (token: Token | null) => {
+        // debugger;
         console.log("Setting destination token:", token ? token.name : "null");
         set({ destinationToken: token });
         // Update token collections to set destination token to have alwaysLoadPrice to true
@@ -290,13 +331,66 @@ const useWeb3Store = create<Web3StoreState>()(
           const currentSourceToken = get().sourceToken;
           const currentDestinationToken = get().destinationToken;
 
-          // Find the full token objects from the loaded tokens if they exist
+          // Create a copy of allTokensList that we can modify
+          const updatedTokensList = [...structuredTokens.allTokensList];
+          let needsCollectionUpdate = false;
+
+          // Find and update source token if it exists
+          if (currentSourceToken) {
+            const sourceTokenIndex = updatedTokensList.findIndex(
+              (token) =>
+                token.address.toLowerCase() ===
+                  currentSourceToken.address.toLowerCase() &&
+                token.chainId === currentSourceToken.chainId,
+            );
+
+            if (sourceTokenIndex !== -1) {
+              updatedTokensList[sourceTokenIndex] = {
+                ...updatedTokensList[sourceTokenIndex],
+                alwaysLoadPrice: true,
+              };
+              needsCollectionUpdate = true;
+            }
+          }
+
+          // Find and update destination token if it exists
+          if (currentDestinationToken) {
+            const destTokenIndex = updatedTokensList.findIndex(
+              (token) =>
+                token.address.toLowerCase() ===
+                  currentDestinationToken.address.toLowerCase() &&
+                token.chainId === currentDestinationToken.chainId,
+            );
+
+            if (destTokenIndex !== -1) {
+              updatedTokensList[destTokenIndex] = {
+                ...updatedTokensList[destTokenIndex],
+                alwaysLoadPrice: true,
+              };
+              needsCollectionUpdate = true;
+            }
+          }
+
+          // If we updated any tokens, update the derived collections
+          let tokensByCompositeKey = structuredTokens.byCompositeKey;
+          let tokensByChainId = structuredTokens.byChainId;
+          let tokensByAddress = structuredTokens.byChainIdAndAddress;
+
+          if (needsCollectionUpdate) {
+            const updatedCollections =
+              updateTokenCollections(updatedTokensList);
+            tokensByCompositeKey = updatedCollections.tokensByCompositeKey;
+            tokensByChainId = updatedCollections.tokensByChainId;
+            tokensByAddress = updatedCollections.tokensByAddress;
+          }
+
+          // Now get the full token objects with alwaysLoadPrice set
           let fullSourceToken = null;
           let fullDestinationToken = null;
 
           if (currentSourceToken) {
             fullSourceToken =
-              structuredTokens.allTokensList.find(
+              updatedTokensList.find(
                 (token) =>
                   token.address.toLowerCase() ===
                     currentSourceToken.address.toLowerCase() &&
@@ -306,7 +400,7 @@ const useWeb3Store = create<Web3StoreState>()(
 
           if (currentDestinationToken) {
             fullDestinationToken =
-              structuredTokens.allTokensList.find(
+              updatedTokensList.find(
                 (token) =>
                   token.address.toLowerCase() ===
                     currentDestinationToken.address.toLowerCase() &&
@@ -315,11 +409,10 @@ const useWeb3Store = create<Web3StoreState>()(
           }
 
           set({
-            tokensByCompositeKey: structuredTokens.byCompositeKey,
-            tokensByChainId: structuredTokens.byChainId,
-            tokensByAddress: structuredTokens.byChainIdAndAddress,
-            allTokensList: structuredTokens.allTokensList,
-            // Rehydrate full token objects from the loaded token list
+            tokensByCompositeKey: tokensByCompositeKey,
+            tokensByChainId: tokensByChainId,
+            tokensByAddress: tokensByAddress,
+            allTokensList: updatedTokensList,
             sourceToken: fullSourceToken,
             destinationToken: fullDestinationToken,
             tokensLoading: false,
@@ -541,6 +634,7 @@ const useWeb3Store = create<Web3StoreState>()(
             userBalance: token.userBalance,
             userBalanceUsd: token.userBalanceUsd,
             isWalletToken: token.isWalletToken,
+            alwaysLoadPrice: token.alwaysLoadPrice,
           };
         };
         return {
