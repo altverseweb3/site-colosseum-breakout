@@ -1,6 +1,6 @@
-// Component wrapper that manages the persistent value
+// components/ui/PersistentAmountDisplay.tsx
 import { ChangeEvent, useEffect, useState } from "react";
-import { NumberTicker } from "./NumberTicker"; // Adjust import path as needed
+import { NumberTicker } from "@/components/ui/NumberTicker";
 
 interface PersistentAmountDisplayProps {
   isLoading: boolean;
@@ -21,25 +21,47 @@ const PersistentAmountDisplay: React.FC<PersistentAmountDisplayProps> = ({
   shouldApplyDisabledStyle,
   readOnly,
 }) => {
-  // State to track the last displayed value for smooth transitions
+  // Track last displayed value for smooth ticker animations
   const [lastDisplayedAmount, setLastDisplayedAmount] = useState(0);
 
-  // Update the last displayed value when amount changes and not loading
   useEffect(() => {
-    if (!isLoading && amount) {
-      // Round to 3 decimal places using parseFloat and toFixed
+    if (!isLoading && amount !== undefined && amount !== null) {
       setLastDisplayedAmount(parseFloat(Number(amount).toFixed(3)));
     }
   }, [amount, isLoading]);
 
-  // Common class for both states
-  const commonClass = `w-full bg-transparent text-3xl focus:outline-none text-right numeric-input [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-    shouldApplyDisabledStyle ? "opacity-70" : ""
-  }`;
+  // --------------------------------------------------------------------------
+  // sanitize incoming value: allow only digits and one “.”
+  const handleSanitizedChange = (e: ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value;
+    // strip out anything that is not 0–9 or "."
+    v = v.replace(/[^0-9.]/g, "");
+    // if more than one ".", keep the first and remove the rest
+    const parts = v.split(".");
+    if (parts.length > 2) {
+      v = parts[0] + "." + parts.slice(1).join("");
+    }
+    // write it back so React sees the real value
+    e.target.value = v;
+    onChange(e);
+  };
+  // --------------------------------------------------------------------------
 
+  const commonClass = `
+    w-full 
+    bg-transparent 
+    text-3xl 
+    focus:outline-none 
+    text-right 
+    numeric-input 
+    [appearance:textfield] 
+    [&::-webkit-outer-spin-button]:appearance-none 
+    [&::-webkit-inner-spin-button]:appearance-none
+    ${shouldApplyDisabledStyle ? "opacity-70" : ""}
+  `;
+
+  // Destination (read-only ticker with pulse on loading)
   if (variant === "destination") {
-    // For destination variant, we keep the same NumberTicker component,
-    // but conditionally add the pulse animation class to its wrapper
     return (
       <div className={isLoading ? "animate-pulse" : ""}>
         <NumberTicker
@@ -52,13 +74,15 @@ const PersistentAmountDisplay: React.FC<PersistentAmountDisplayProps> = ({
         />
       </div>
     );
-  } else if (variant !== "destination") {
-    // For the input variant
+  }
+  // Source (editable input)
+  else if (variant !== "destination") {
     return (
       <input
-        type="number"
-        value={amount}
-        onChange={onChange ?? (() => {})}
+        type="text"
+        inputMode="decimal"
+        value={String(amount)}
+        onChange={handleSanitizedChange}
         placeholder={placeholder}
         className={commonClass}
         readOnly={readOnly}
@@ -67,7 +91,7 @@ const PersistentAmountDisplay: React.FC<PersistentAmountDisplayProps> = ({
     );
   }
 
-  // Fallback return (shouldn't reach here)
+  // fallback (shouldn't ever hit)
   return null;
 };
 
