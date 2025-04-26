@@ -1,5 +1,4 @@
-// components/ui/PersistentAmountDisplay.tsx
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState, useRef } from "react";
 import { NumberTicker } from "@/components/ui/NumberTicker";
 
 interface PersistentAmountDisplayProps {
@@ -23,15 +22,89 @@ const PersistentAmountDisplay: React.FC<PersistentAmountDisplayProps> = ({
 }) => {
   // Track last displayed value for smooth ticker animations
   const [lastDisplayedAmount, setLastDisplayedAmount] = useState(0);
+  // Track the container height to maintain consistent sizing
+  const [containerHeight, setContainerHeight] = useState<number | null>(null);
+  // Track the actual rendered content length
+  const [contentLength, setContentLength] = useState(0);
+  // Refs for DOM access
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const tickerRef = useRef<HTMLDivElement>(null);
 
+  // Dynamic text size based on content length
+  const getTextSizeClass = (length: number) => {
+    if (length < 10) return "text-3xl";
+    if (length < 14) return "text-2xl";
+    if (length < 18) return "text-normal";
+    if (length < 22) return "text-sm";
+    return "text-xs";
+  };
+
+  // Set initial last displayed amount
   useEffect(() => {
     if (!isLoading && amount !== undefined && amount !== null) {
       setLastDisplayedAmount(parseFloat(Number(amount).toFixed(3)));
     }
   }, [amount, isLoading]);
 
-  // --------------------------------------------------------------------------
-  // sanitize incoming value: allow only digits and one “.”
+  // Establish initial height based on text-3xl
+  useEffect(() => {
+    if (containerRef.current && !containerHeight) {
+      // Add a temporary element with text-3xl to measure
+      const tempDiv = document.createElement("div");
+      tempDiv.className = "text-3xl";
+      tempDiv.innerText = "0";
+      tempDiv.style.visibility = "hidden";
+      tempDiv.style.position = "absolute";
+      containerRef.current.appendChild(tempDiv);
+
+      // Measure and store the height
+      const height = tempDiv.offsetHeight;
+      setContainerHeight(height);
+
+      // Clean up
+      containerRef.current.removeChild(tempDiv);
+    }
+  }, [containerHeight]);
+
+  // Setup observer for the ticker variant
+  useEffect(() => {
+    if (variant === "destination" && tickerRef.current) {
+      // Use MutationObserver to watch for text content changes
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (
+            mutation.type === "characterData" ||
+            mutation.type === "childList"
+          ) {
+            const el = tickerRef.current?.querySelector(".numeric-input");
+            if (el) {
+              const content = el.textContent || "";
+              setContentLength(content.length);
+            }
+          }
+        });
+      });
+
+      // Start observing with appropriate config
+      observer.observe(tickerRef.current, {
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
+
+      return () => observer.disconnect();
+    }
+  }, [variant]);
+
+  // For input variant, track content length changes directly
+  useEffect(() => {
+    if (variant !== "destination" && inputRef.current) {
+      setContentLength(String(amount).length);
+    }
+  }, [amount, variant]);
+
+  // Sanitize incoming value: allow only digits and one "."
   const handleSanitizedChange = (e: ChangeEvent<HTMLInputElement>) => {
     let v = e.target.value;
     // strip out anything that is not 0–9 or "."
@@ -45,12 +118,15 @@ const PersistentAmountDisplay: React.FC<PersistentAmountDisplayProps> = ({
     e.target.value = v;
     onChange(e);
   };
-  // --------------------------------------------------------------------------
 
+  // Dynamic text size class based on current content length
+  const textSizeClass = getTextSizeClass(contentLength);
+
+  // Base styles with dynamic text size
   const commonClass = `
     w-full 
     bg-transparent 
-    text-3xl 
+    ${textSizeClass}
     focus:outline-none 
     text-right 
     numeric-input 
@@ -58,36 +134,56 @@ const PersistentAmountDisplay: React.FC<PersistentAmountDisplayProps> = ({
     [&::-webkit-outer-spin-button]:appearance-none 
     [&::-webkit-inner-spin-button]:appearance-none
     ${shouldApplyDisabledStyle ? "opacity-70" : ""}
+    transition-font-size
+    duration-200
   `;
+
+  // Container style to maintain consistent height
+  const containerStyle = containerHeight
+    ? { height: `${containerHeight}px`, overflow: "visible" }
+    : {};
 
   // Destination (read-only ticker with pulse on loading)
   if (variant === "destination") {
     return (
-      <div className={isLoading ? "animate-pulse" : ""}>
-        <NumberTicker
-          value={Number(amount)}
-          startValue={lastDisplayedAmount}
-          decimalPlaces={3}
-          stiffness={500}
-          damping={90}
-          className={commonClass}
-        />
+      <div
+        ref={containerRef}
+        style={containerStyle}
+        className="flex items-center justify-end"
+      >
+        <div ref={tickerRef} className={isLoading ? "animate-pulse" : ""}>
+          <NumberTicker
+            value={Number(amount)}
+            startValue={lastDisplayedAmount}
+            decimalPlaces={3}
+            stiffness={500}
+            damping={90}
+            className={commonClass}
+          />
+        </div>
       </div>
     );
   }
   // Source (editable input)
   else if (variant !== "destination") {
     return (
-      <input
-        type="text"
-        inputMode="decimal"
-        value={String(amount)}
-        onChange={handleSanitizedChange}
-        placeholder={placeholder}
-        className={commonClass}
-        readOnly={readOnly}
-        disabled={readOnly}
-      />
+      <div
+        ref={containerRef}
+        style={containerStyle}
+        className="flex items-center justify-end"
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={String(amount)}
+          onChange={handleSanitizedChange}
+          placeholder={placeholder}
+          className={commonClass}
+          readOnly={readOnly}
+          disabled={readOnly}
+        />
+      </div>
     );
   }
 
