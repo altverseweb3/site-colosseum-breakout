@@ -205,6 +205,31 @@ const useWeb3Store = create<Web3StoreState>()(
       setDestinationToken: (token: Token | null) => {
         console.log("Setting destination token:", token ? token.name : "null");
         set({ destinationToken: token });
+        // Update token collections to set destination token to have alwaysLoadPrice to true
+        if (token) {
+          set((state) => {
+            const updatedToken = {
+              ...token,
+              alwaysLoadPrice: true,
+            };
+            const newTokensList = state.allTokensList.map((t) =>
+              t.address === token.address && t.chainId === token.chainId
+                ? updatedToken
+                : t,
+            );
+            const {
+              tokensByCompositeKey: updatedByCompositeKey,
+              tokensByChainId: updatedByChainId,
+              tokensByAddress: updatedByAddress,
+            } = updateTokenCollections(newTokensList);
+            return {
+              allTokensList: newTokensList,
+              tokensByCompositeKey: updatedByCompositeKey,
+              tokensByChainId: updatedByChainId,
+              tokensByAddress: updatedByAddress,
+            };
+          });
+        }
       },
 
       addCustomToken: (token: Token) => {

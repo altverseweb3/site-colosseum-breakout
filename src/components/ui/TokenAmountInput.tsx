@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Wallet } from "lucide-react";
 import PersistentAmountDisplay from "@/components/ui/PersistentAmountDisplay";
 import useWeb3Store, { useSourceToken } from "@/store/web3Store";
@@ -24,6 +24,7 @@ export function TokenAmountInput({
 }: TokenAmountInputProps) {
   const isLoading = isLoadingQuote && readOnly;
   const sourceToken = useSourceToken();
+  const [displayedAmountUsd, setDisplayedAmountUsd] = useState("$~");
 
   // Create a more specific subscription to track token balance changes
   const tokenAddress = sourceToken?.address?.toLowerCase();
@@ -47,6 +48,16 @@ export function TokenAmountInput({
   const currentBalance = useMemo(() => {
     return tokenBalance || sourceToken?.userBalance || "0";
   }, [tokenBalance, sourceToken?.userBalance]);
+
+  useEffect(() => {
+    if (variant === "destination") {
+      debugger;
+      // Update the displayed amount in USD when the amount changes
+      setDisplayedAmountUsd(
+        dollarValue > 0 ? `$${dollarValue.toFixed(2)}` : "$~",
+      );
+    }
+  }, [dollarValue, variant]);
 
   // Helper function to format balance nicely with abbreviations for large numbers
   const formatBalance = (balance: string): string => {
@@ -123,7 +134,7 @@ export function TokenAmountInput({
       <div className="w-full flex flex-col">
         {variant === "destination" && (
           <span className="text-zinc-400 text-sm numeric-input">
-            ${(Math.round(dollarValue * 100) / 100).toFixed(2)}
+            {displayedAmountUsd}
           </span>
         )}
 

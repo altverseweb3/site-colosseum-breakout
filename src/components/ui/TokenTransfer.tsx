@@ -56,12 +56,16 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   relayerFeeUsd = 0,
   totalFeeUsd = 0,
   sourceAmountUsd = 0,
-  destinationAmountUsd = 0,
 }) => {
   // State to track if the input should be enabled
   const [isInputEnabled, setIsInputEnabled] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const swapChains = useWeb3Store((state) => state.swapChains);
+  const [destinationAmountValue, setDestinationAmountValue] = useState(0);
+  const [theThing, setTheThing] = useState(0);
+  const tokensByCompositeKey = useWeb3Store(
+    (state) => state.tokensByCompositeKey,
+  );
+  const destinationToken = useWeb3Store((state) => state.destinationToken);
 
   useEffect(() => {
     const shouldBeEnabled =
@@ -70,6 +74,19 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
 
     setIsInputEnabled(shouldBeEnabled);
   }, [hasSourceToken, hasDestinationToken, showDestinationTokenSelector]);
+
+  useEffect(() => {
+    debugger;
+    const compositeKey = `${destinationToken?.chainId}-${destinationToken?.address}`;
+    const destinationTokenValue = tokensByCompositeKey[compositeKey];
+    if (destinationTokenValue) {
+      const destinationTokenPrice = destinationTokenValue?.priceUsd;
+      const amountInUsd = Number(receiveAmount) * Number(destinationTokenPrice);
+      setDestinationAmountValue(amountInUsd);
+    } else {
+      setDestinationAmountValue(0);
+    }
+  }, [theThing]);
 
   const defaultSettingsButton = (
     <button onClick={() => setShowDetails(!showDetails)}>
@@ -139,7 +156,8 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
 
       <TokenSwitch
         onClick={() => {
-          swapChains();
+          setTheThing((prev) => prev + 1);
+          // swapChains();
         }}
       />
 
@@ -155,7 +173,7 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
           readOnly={true}
           showSelectToken={showDestinationTokenSelector}
           isLoadingQuote={isLoadingQuote}
-          dollarValue={destinationAmountUsd}
+          dollarValue={destinationAmountValue}
         />
       </AssetBox>
     </>

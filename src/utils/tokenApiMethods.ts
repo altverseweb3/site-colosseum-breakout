@@ -162,8 +162,15 @@ export async function getPricesAndBalancesForChain(
     );
 
     // Filter unique addresses in case the balance API returns duplicates (unlikely but safe)
-    const uniqueAddresses = [...new Set(addressesWithBalance)];
-
+    const alwaysLoadPriceAddresses = useWeb3Store
+      .getState()
+      .allTokensList.filter(
+        (token) => token.chainId === chainId && token.alwaysLoadPrice,
+      );
+    const uniqueAddresses = [
+      ...new Set(addressesWithBalance),
+      ...alwaysLoadPriceAddresses.map((token) => token.address.toLowerCase()),
+    ];
     const tokenAddressesForPriceFetch: TokenAddressInfo[] = uniqueAddresses.map(
       (address) => ({
         network: networkName,

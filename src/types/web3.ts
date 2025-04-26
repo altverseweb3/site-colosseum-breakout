@@ -38,6 +38,7 @@ export type Token = {
   priceUsd?: string;
   isWalletToken?: boolean;
   customToken?: boolean;
+  alwaysLoadPrice?: boolean;
 };
 
 export type Chain = {
