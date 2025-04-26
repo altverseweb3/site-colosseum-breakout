@@ -19,6 +19,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: false,
     gasDrop: 0.05,
+    nativeAddress: "0x0000000000000000000000000000000000000000",
   },
   arbitrum: {
     id: "arbitrum",
@@ -37,6 +38,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: true,
     gasDrop: 0.01,
+    nativeAddress: "0x912CE59144191C1204E64559FE8253a0e49E6548",
   },
   optimism: {
     id: "optimism",
@@ -55,6 +57,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: true,
     gasDrop: 0.01,
+    nativeAddress: "0x4200000000000000000000000000000000000042",
   },
   base: {
     id: "base",
@@ -73,6 +76,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: true,
     gasDrop: 0.01,
+    nativeAddress: "0x4200000000000000000000000000000000000006",
   },
   unichain: {
     id: "unichain",
@@ -91,6 +95,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: true,
     gasDrop: 0.01,
+    nativeAddress: "0x4200000000000000000000000000000000000006",
   },
   // sui: {
   //   id: "sui",
@@ -126,6 +131,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: false,
     gasDrop: 0.2,
+    nativeAddress: "0x0000000000000000000000000000000000001010",
   },
   "binance-smart-chain": {
     id: "binance-smart-chain",
@@ -144,6 +150,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: false,
     gasDrop: 0.02,
+    nativeAddress: "0x0000000000000000000000000000000000000000",
   },
   avalanche: {
     id: "avalanche",
@@ -162,6 +169,7 @@ export const chains: Record<string, Chain> = {
     decimals: 18,
     l2: false,
     gasDrop: 0.1,
+    nativeAddress: "0x0000000000000000000000000000000000000000",
   },
   // solana: {
   //   id: "solana",
