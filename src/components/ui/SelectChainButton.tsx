@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ChevronDown, CornerDownRight, Check } from "lucide-react";
 import Image from "next/image";
 import {
@@ -16,7 +16,7 @@ interface SelectChainButtonProps {
   onChainSelect?: (chain: Chain) => void;
   displayName?: boolean;
   chainsToShow?: Chain[];
-  storeType?: "source" | "destination"; // Optional prop for Zustand store integration
+  storeType?: "source" | "destination";
 }
 
 export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
@@ -41,6 +41,12 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
       : destinationChain
     : propSelectedChain || defaultSourceChain;
 
+  // Animation timers ref
+  const timersRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
+  // Last selected chain for comparison
+  const lastSelectedChainRef = useRef<string>(selectedChain.id);
+
   // State for the icon currently being displayed
   const [displayedChain, setDisplayedChain] = useState<Chain>(selectedChain);
   // State for the icon's opacity
@@ -55,6 +61,12 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
   const [fontColor, setFontColor] = useState(
     selectedChain.fontColor || "#FFFFFF",
   );
+
+  // Clear all timers
+  const clearAllTimers = () => {
+    Object.values(timersRef.current).forEach((timer) => clearTimeout(timer));
+    timersRef.current = {};
+  };
 
   // Handle chain selection based on whether we're using the store or props
   const handleChainSelect = (chain: Chain) => {
@@ -73,52 +85,62 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
 
   // When selectedChain changes, animate the icon change:
   useEffect(() => {
-    // Only trigger animation if the chain has actually changed.
-    if (selectedChain.id !== displayedChain.id) {
+    // Skip if this is just the initial render with the same chain
+    if (
+      selectedChain.id === lastSelectedChainRef.current &&
+      lastSelectedChainRef.current === displayedChain.id &&
+      !isChanging
+    ) {
+      return;
+    }
+
+    // Update ref to track the current selected chain
+    lastSelectedChainRef.current = selectedChain.id;
+
+    // Clean up any ongoing animations to prevent conflicts
+    clearAllTimers();
+
+    // Only trigger full animation if the chain has actually changed
+    if (selectedChain.id !== displayedChain.id || isChanging) {
       setIsChanging(true);
       setShowRipple(true);
 
-      // Start background color transition
-      const bgTransitionTimer = setTimeout(() => {
+      // Start background color transition with original timing
+      timersRef.current.bgTransition = setTimeout(() => {
         setBgColor(selectedChain.backgroundColor);
         setFontColor(selectedChain.fontColor || "#FFFFFF");
       }, 50);
 
-      // Fade out the current icon.
+      // Fade out the current icon with original timing
       setOpacity(0);
 
-      // After the fade-out duration, swap the icon and then fade in.
-      const fadeOutTimer = setTimeout(() => {
+      // After the fade-out duration, swap the icon and then fade in
+      timersRef.current.fadeOut = setTimeout(() => {
         setDisplayedChain(selectedChain);
 
         // Small delay to ensure the new icon renders at opacity 0
-        // before starting fade-in.
-        const fadeInTimer = setTimeout(() => {
+        // before starting fade-in
+        timersRef.current.fadeIn = setTimeout(() => {
           setOpacity(1);
 
           // Finish the animation
-          const cleanupTimer = setTimeout(() => {
+          timersRef.current.cleanup = setTimeout(() => {
             setIsChanging(false);
             setShowRipple(false);
           }, 300);
-
-          return () => clearTimeout(cleanupTimer);
         }, 50);
-
-        return () => clearTimeout(fadeInTimer);
       }, 300);
-
-      return () => {
-        clearTimeout(fadeOutTimer);
-        clearTimeout(bgTransitionTimer);
-      };
     } else {
-      // If this is the initial render, make sure state is synced
+      // If just syncing state, make sure everything is set correctly
       setBgColor(selectedChain.backgroundColor);
       setFontColor(selectedChain.fontColor || "#FFFFFF");
       setDisplayedChain(selectedChain);
+      setOpacity(1);
     }
-  }, [selectedChain, displayedChain]);
+
+    // Clean up on unmount or before re-running effect
+    return clearAllTimers;
+  }, [selectedChain, isChanging]);
 
   return (
     <DropdownMenu>
@@ -131,7 +153,7 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
             height: "28px",
             padding: "0px 6px",
             backgroundColor: bgColor,
-            transition: "background-color 600ms ease",
+            transition: "background-color 600ms ease", // Original timing
           }}
         >
           {/* Ripple effect when chain changes */}
@@ -149,10 +171,11 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
               width: "18px",
               height: "18px",
               opacity,
-              transition: "opacity 300ms ease, transform 300ms ease",
+              transition: "opacity 300ms ease, transform 300ms ease", // Original timing
               transform: isChanging ? "scale(0.9)" : "scale(1)",
             }}
           >
+            {/* Always render the image even during transitions */}
             <Image
               src={`/tokens/mono/${displayedChain.icon}`}
               alt={displayedChain.name}
@@ -167,7 +190,7 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
               className="text-sm font-medium hidden sm:block z-10 mx-1"
               style={{
                 opacity: isChanging ? opacity : 1,
-                transition: "opacity 300ms ease",
+                transition: "opacity 300ms ease", // Original timing
                 color: fontColor,
               }}
             >
