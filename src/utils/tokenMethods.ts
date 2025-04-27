@@ -28,9 +28,9 @@ export const loadTokensForChain = async (
   fetchChainId: string,
 ): Promise<Token[]> => {
   try {
-    const response = await fetch(`/tokens/${fetchChainId}/data.json`);
+    const chainResponse = await fetch(`/tokens/${fetchChainId}/data.json`);
 
-    if (!response.ok) {
+    if (!chainResponse.ok) {
       console.warn(`No token data found for chain ${fetchChainId}`);
       return [];
     }
@@ -42,11 +42,13 @@ export const loadTokensForChain = async (
       return [];
     }
 
-    const data: TokenDataItem[] = await response.json();
+    const data: TokenDataItem[] = await chainResponse.json();
 
     const numericChainId = chainConfig.chainId;
 
-    return data.map((item) => {
+    // load standard ERC20s
+    let tokensForChain: Token[] = [];
+    tokensForChain = data.map((item) => {
       return {
         id: item.id,
         name: item.name.toLowerCase(),
@@ -62,8 +64,37 @@ export const loadTokensForChain = async (
             : item.alchemy_metadata.decimals,
         chainId: numericChainId,
         isWalletToken: false,
+        native: false,
       };
     });
+
+    // laod native asset (and filter existing native asset if already present)
+    const nativeResponse = await fetch(`/tokens/native/data.json`);
+
+    if (!nativeResponse.ok) {
+      console.warn(`No native token data found!`);
+      return [];
+    }
+
+    const nativeData: TokenDataItem[] = await nativeResponse.json();
+
+    const nativeToken = nativeData
+      .filter((item) => item.id === fetchChainId)
+      .map((item) => {
+        return {
+          id: item.id,
+          name: item.name.toLowerCase(),
+          ticker: item.symbol.toUpperCase(),
+          icon: item.local_image,
+          address: item.contract_address,
+          decimals: 18,
+          chainId: numericChainId,
+          isWalletToken: false,
+          native: true,
+        };
+      });
+
+    return tokensForChain.concat(nativeToken);
   } catch (error) {
     console.error(`Error loading tokens for chain ${fetchChainId}:`, error);
     return [];

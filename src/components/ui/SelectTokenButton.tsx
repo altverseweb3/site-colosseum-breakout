@@ -24,9 +24,9 @@ import useWeb3Store, {
   useSourceToken,
   useDestinationToken,
 } from "@/store/web3Store";
-import { TokenImage } from "./TokenImage";
+import { TokenImage } from "@/components/ui/TokenImage";
 import { useDebounce } from "use-debounce";
-import { SkeletonTokenList } from "./SkeletonTokenList";
+import { SkeletonTokenList } from "@/components/ui/SkeletonTokenList";
 import { getTokenMetadata } from "@/utils/tokenApiMethods";
 
 interface TokenListItemProps {
@@ -176,29 +176,84 @@ const VirtualizedTokenList: React.FC<{
     chain,
     searchQuery,
   }) => {
+    const { processedWalletTokens, processedAllTokens } = useMemo(() => {
+      // Find the first native token
+      const nativeToken = allTokens.find((token) => token.native === true);
+      const nativeAddress = nativeToken?.address || "";
+
+      // Keep track of whether we've already included a native token
+      let hasAddedNative = false;
+
+      // Filter out duplicate native tokens - keep only one with native=true
+      // and remove tokens with address 0x0 or matching the native token address
+      const filterNonDuplicates = (tokens: Token[]) =>
+        tokens.filter((token) => {
+          // If this is a native token
+          if (token.native === true) {
+            // If we haven't added a native token yet, keep it and mark as added
+            if (!hasAddedNative) {
+              hasAddedNative = true;
+              return true;
+            }
+            // Otherwise skip this native token as we already have one
+            return false;
+          }
+
+          // Not a native token, so check if it's not a duplicate address
+          return (
+            token.address !== "0x0000000000000000000000000000000000000000" &&
+            token.address.toUpperCase() !== nativeAddress.toUpperCase()
+          );
+        });
+
+      // Reset this flag before processing each list
+      const processWalletTokens = () => {
+        hasAddedNative = false;
+        return filterNonDuplicates(walletTokens);
+      };
+
+      const processAllTokens = () => {
+        hasAddedNative = false;
+        return filterNonDuplicates(allTokens);
+      };
+
+      // Sort function to place native token first
+      const sortWithNativeFirst = (tokens: Token[]) => {
+        return [...tokens].sort((a, b) => {
+          if (a.native === true) return -1;
+          if (b.native === true) return 1;
+          return 0;
+        });
+      };
+
+      const processedWalletTokens = processWalletTokens();
+      const processedAllTokens = sortWithNativeFirst(processAllTokens());
+
+      return { processedWalletTokens, processedAllTokens };
+    }, [walletTokens, allTokens]);
+
+    // Apply search filtering on the processed token lists
     const filteredWalletTokens = useMemo(() => {
       const query = searchQuery.toLowerCase();
-      if (!query) return walletTokens;
-
-      return walletTokens.filter(
+      if (!query) return processedWalletTokens;
+      return processedWalletTokens.filter(
         (token) =>
           token.name.toLowerCase().includes(query) ||
           token.ticker.toLowerCase().includes(query) ||
           token.address.toLowerCase().includes(query),
       );
-    }, [walletTokens, searchQuery]);
+    }, [processedWalletTokens, searchQuery]);
 
     const filteredAllTokens = useMemo(() => {
       const query = searchQuery.toLowerCase();
-      if (!query) return allTokens;
-
-      return allTokens.filter(
+      if (!query) return processedAllTokens;
+      return processedAllTokens.filter(
         (token) =>
           token.name.toLowerCase().includes(query) ||
           token.ticker.toLowerCase().includes(query) ||
           token.address.toLowerCase().includes(query),
       );
-    }, [allTokens, searchQuery]);
+    }, [processedAllTokens, searchQuery]);
 
     if (filteredWalletTokens.length === 0 && filteredAllTokens.length === 0) {
       return (
@@ -221,7 +276,6 @@ const VirtualizedTokenList: React.FC<{
           onCopy={onCopy}
           chain={chain}
         />
-
         {/* All tokens section */}
         <TokenListSection
           title="all tokens"

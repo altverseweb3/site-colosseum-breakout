@@ -43,6 +43,14 @@ export const TokenImage: React.FC<TokenImageProps> = ({
     setHasError(true);
   };
 
+  // Determine the image source based on whether the token is native or not
+  const getImageSrc = () => {
+    if (token.native) {
+      return `/tokens/native/pngs/${token.icon}`;
+    }
+    return `/tokens/${chain.id}/pngs/${token.icon}`;
+  };
+
   // If there was an error, show the question mark icon
   if (hasError) {
     return (
@@ -58,7 +66,7 @@ export const TokenImage: React.FC<TokenImageProps> = ({
   return (
     <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
       <Image
-        src={`/tokens/${chain.id}/pngs/${token.icon}`}
+        src={getImageSrc()}
         alt={token.name}
         fill
         sizes={sizesProp[size]}

@@ -39,6 +39,7 @@ export type Token = {
   isWalletToken?: boolean;
   customToken?: boolean;
   alwaysLoadPrice?: boolean;
+  native?: boolean;
 };
 
 export type Chain = {
