@@ -32,7 +32,7 @@ const TokenInitializer: React.FC = () => {
 
   useEffect(() => {
     // Fetch prices and balances for the active wallet
-    if (sourceChain && destinationChain && tokenCount && activeWallet) {
+    if (sourceChain && destinationChain && tokenCount) {
       // Function to fetch data
       const fetchData = () => {
         if (!isIdle) {
