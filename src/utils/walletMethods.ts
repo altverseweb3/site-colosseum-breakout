@@ -737,6 +737,7 @@ export function useTokenTransfer(
     getSlippageBps,
     getGasDrop,
     refreshTrigger,
+    isValid,
   ]);
 
   useEffect(() => {

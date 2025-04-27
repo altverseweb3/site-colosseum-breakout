@@ -1,7 +1,12 @@
 "use client";
 
 import { useInView, useMotionValue, useSpring } from "motion/react";
-import { ComponentPropsWithoutRef, useEffect, useRef } from "react";
+import {
+  ComponentPropsWithoutRef,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,7 +16,6 @@ interface NumberTickerProps extends ComponentPropsWithoutRef<"span"> {
   direction?: "up" | "down";
   delay?: number;
   decimalPlaces?: number;
-  // Add new properties to control animation speed
   stiffness?: number;
   damping?: number;
 }
@@ -23,7 +27,6 @@ export function NumberTicker({
   delay = 0,
   className,
   decimalPlaces = 0,
-  // Default to much higher values for faster animation
   stiffness = 300,
   damping = 80,
   ...props
@@ -36,12 +39,15 @@ export function NumberTicker({
   });
   const isInView = useInView(ref, { once: true, margin: "0px" });
 
-  const formatNumber = (num: number) => {
-    return Intl.NumberFormat("en-US", {
-      minimumFractionDigits: decimalPlaces,
-      maximumFractionDigits: decimalPlaces,
-    }).format(Number(num.toFixed(decimalPlaces)));
-  };
+  const formatNumber = useCallback(
+    (num: number) => {
+      return Intl.NumberFormat("en-US", {
+        minimumFractionDigits: decimalPlaces,
+        maximumFractionDigits: decimalPlaces,
+      }).format(Number(num.toFixed(decimalPlaces)));
+    },
+    [decimalPlaces],
+  );
 
   useEffect(() => {
     if (isInView) {
@@ -59,10 +65,9 @@ export function NumberTicker({
           ref.current.textContent = formatNumber(latest);
         }
       }),
-    [springValue, decimalPlaces],
+    [springValue, formatNumber],
   );
 
-  // Important: Format the initial value too
   return (
     <span
       ref={ref}

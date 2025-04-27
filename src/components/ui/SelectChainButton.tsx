@@ -140,7 +140,7 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
 
     // Clean up on unmount or before re-running effect
     return clearAllTimers;
-  }, [selectedChain, isChanging]);
+  }, [selectedChain, isChanging, displayedChain.id]);
 
   return (
     <DropdownMenu>
