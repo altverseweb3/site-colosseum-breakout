@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useIdleTimer } from "react-idle-timer";
 import useWeb3Store from "@/store/web3Store";
-import { getPricesAndBalancesForActiveWallet } from "@/utils/tokenApiMethods";
+import { getPricesAndBalances } from "@/utils/tokenApiMethods";
 
 /**
  * Component that initializes token data on dApp startup.
@@ -37,14 +37,14 @@ const TokenInitializer: React.FC = () => {
       const fetchData = () => {
         if (!isIdle) {
           console.log("Fetching token data - user is active");
-          getPricesAndBalancesForActiveWallet();
+          getPricesAndBalances();
         } else {
           console.log("Skipping token data fetch - user is idle");
         }
       };
 
       // Initial fetch when dependencies change (regardless of idle state)
-      getPricesAndBalancesForActiveWallet();
+      getPricesAndBalances();
 
       // Set up interval to run every 10 seconds
       const intervalId = setInterval(fetchData, 10000); // 10 seconds

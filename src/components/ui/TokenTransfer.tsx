@@ -9,6 +9,7 @@ import { BrandedButton } from "@/components/ui/BrandedButton";
 import { AvailableIconName } from "@/types/ui";
 import { swapChains } from "@/utils/chainMethods";
 import useWeb3Store from "@/store/web3Store";
+import { Token } from "@/types/web3";
 
 interface TokenTransferProps {
   amount: string;
@@ -75,30 +76,29 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   }, [hasSourceToken, hasDestinationToken, showDestinationTokenSelector]);
 
   useEffect(() => {
-    const sourceCompositeKey = `${sourceToken?.chainId}-${sourceToken?.address}`;
-    const destinationCompositeKey = `${destinationToken?.chainId}-${destinationToken?.address}`;
-    const sourceTokenValue = tokensByCompositeKey[sourceCompositeKey];
-    const destinationTokenValue = tokensByCompositeKey[destinationCompositeKey];
-    if (destinationTokenValue) {
-      const destinationTokenPrice = destinationTokenValue?.priceUsd;
-      const amountInUsd = Number(receiveAmount) * Number(destinationTokenPrice);
-      setDestinationAmountValue(amountInUsd);
-    } else {
-      setDestinationAmountValue(0);
-    }
-    if (sourceTokenValue) {
-      const sourceTokenPrice = sourceTokenValue?.priceUsd;
-      const amountInUsd = Number(amount) * Number(sourceTokenPrice);
-      setSourceAmountValue(amountInUsd);
-    } else {
-      setSourceAmountValue(0);
-    }
+    // Helper function to calculate USD value for a token and amount
+    const calculateUsdValue = (token: Token | null, amount: string) => {
+      if (!token?.chainId || !token?.address) return 0;
+
+      const compositeKey = `${token.chainId}-${token.address}`;
+      const tokenValue = tokensByCompositeKey[compositeKey];
+
+      if (!tokenValue?.priceUsd) return 0;
+
+      return Number(amount) * Number(tokenValue.priceUsd);
+    };
+
+    // Calculate and set values in one go
+    setSourceAmountValue(calculateUsdValue(sourceToken, amount));
+    setDestinationAmountValue(
+      calculateUsdValue(destinationToken, receiveAmount),
+    );
   }, [
     tokensByCompositeKey,
-    destinationToken,
     sourceToken,
-    receiveAmount,
+    destinationToken,
     amount,
+    receiveAmount,
   ]);
 
   const defaultSettingsButton = (

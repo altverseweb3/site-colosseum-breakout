@@ -52,7 +52,7 @@ function formatTokenBalance(balanceStr: string, decimals: number): string {
   }
 }
 
-export async function getPricesAndBalancesForActiveWallet(): Promise<boolean> {
+export async function getPricesAndBalances(): Promise<boolean> {
   const store = useWeb3Store.getState();
   const activeWallet = store.activeWallet;
 
@@ -62,12 +62,12 @@ export async function getPricesAndBalancesForActiveWallet(): Promise<boolean> {
     const [sourceResult, destinationResult] = await Promise.allSettled([
       getPricesAndBalancesForChain(
         store.sourceChain.chainId,
-        activeWallet?.address, // Now passing undefined if no wallet
+        activeWallet?.address,
         "source",
       ),
       getPricesAndBalancesForChain(
         store.destinationChain.chainId,
-        activeWallet?.address, // Now passing undefined if no wallet
+        activeWallet?.address,
         "destination",
       ),
     ]);
@@ -333,7 +333,7 @@ export async function getPricesAndBalancesForChain(
     return false;
   }
 
-  // This return will never be reached but satisfies TypeScript
+  // This return is unreachable but added for TypeScript type safety
   return false;
 }
 
