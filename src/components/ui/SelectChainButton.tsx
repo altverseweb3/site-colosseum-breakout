@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, CornerDownRight, Check } from "lucide-react";
 import Image from "next/image";
 import {
@@ -62,11 +62,11 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
     selectedChain.fontColor || "#FFFFFF",
   );
 
-  // Clear all timers
-  const clearAllTimers = () => {
+  // Clear all timers - wrapped in useCallback to prevent recreation on every render
+  const clearAllTimers = useCallback(() => {
     Object.values(timersRef.current).forEach((timer) => clearTimeout(timer));
     timersRef.current = {};
-  };
+  }, []);
 
   // Handle chain selection based on whether we're using the store or props
   const handleChainSelect = (chain: Chain) => {
@@ -94,53 +94,53 @@ export const SelectChainButton: React.FC<SelectChainButtonProps> = ({
       return;
     }
 
+    // Always clear existing animations when chain changes
+    clearAllTimers();
+
     // Update ref to track the current selected chain
     lastSelectedChainRef.current = selectedChain.id;
 
-    // Clean up any ongoing animations to prevent conflicts
-    clearAllTimers();
+    // Start the animation sequence
+    setIsChanging(true);
+    setShowRipple(true);
 
-    // Only trigger full animation if the chain has actually changed
-    if (selectedChain.id !== displayedChain.id || isChanging) {
-      setIsChanging(true);
-      setShowRipple(true);
+    // Start background transition immediately
+    setBgColor(selectedChain.backgroundColor);
+    setFontColor(selectedChain.fontColor || "#FFFFFF");
 
-      // Start background color transition with original timing
-      timersRef.current.bgTransition = setTimeout(() => {
-        setBgColor(selectedChain.backgroundColor);
-        setFontColor(selectedChain.fontColor || "#FFFFFF");
-      }, 50);
+    // Start fadeout
+    setOpacity(0);
 
-      // Fade out the current icon with original timing
-      setOpacity(0);
-
-      // After the fade-out duration, swap the icon and then fade in
-      timersRef.current.fadeOut = setTimeout(() => {
-        setDisplayedChain(selectedChain);
-
-        // Small delay to ensure the new icon renders at opacity 0
-        // before starting fade-in
-        timersRef.current.fadeIn = setTimeout(() => {
-          setOpacity(1);
-
-          // Finish the animation
-          timersRef.current.cleanup = setTimeout(() => {
-            setIsChanging(false);
-            setShowRipple(false);
-          }, 300);
-        }, 50);
-      }, 300);
-    } else {
-      // If just syncing state, make sure everything is set correctly
-      setBgColor(selectedChain.backgroundColor);
-      setFontColor(selectedChain.fontColor || "#FFFFFF");
+    // SIMPLIFIED ANIMATION SEQUENCE WITH BETTER TIMING
+    // After fadeout completes, update the icon and fade in
+    timersRef.current.animation = setTimeout(() => {
+      // Update displayed chain
       setDisplayedChain(selectedChain);
-      setOpacity(1);
-    }
+
+      // Start fade in after a short delay
+      timersRef.current.fadeIn = setTimeout(() => {
+        // Set opacity back to 1
+        setOpacity(1);
+
+        // Complete animation
+        timersRef.current.complete = setTimeout(() => {
+          setIsChanging(false);
+          setShowRipple(false);
+        }, 300);
+      }, 50);
+    }, 300);
 
     // Clean up on unmount or before re-running effect
     return clearAllTimers;
-  }, [selectedChain, isChanging, displayedChain.id]);
+  }, [selectedChain, displayedChain.id, isChanging, clearAllTimers]);
+
+  // ADDED: Safety effect to ensure the icon is visible when animation completes
+  useEffect(() => {
+    if (!isChanging && opacity !== 1) {
+      // If animation has completed but opacity is still 0, force it to 1
+      setOpacity(1);
+    }
+  }, [isChanging, opacity]);
 
   return (
     <DropdownMenu>
