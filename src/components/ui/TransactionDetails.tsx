@@ -16,12 +16,14 @@ import useWeb3Store, {
   useSetGasDrop,
   useDestinationChain,
 } from "@/store/web3Store";
+import { Token } from "@/types/web3";
 
 interface TransactionDetailsProps {
-  protocolFeeUsd?: number;
+  protocolFeeAmount?: number;
+  referrerFeeAmount?: number;
   relayerFeeUsd?: number;
-  totalFeeUsd?: number;
   estimatedTime?: string | number | null; // Allow number for seconds or null
+  isLoadingQuote?: boolean;
   className?: string;
   isOpen?: boolean;
   onToggle?: () => void;
@@ -29,6 +31,10 @@ interface TransactionDetailsProps {
 
 export function TransactionDetails({
   estimatedTime = "~",
+  protocolFeeAmount = 0,
+  referrerFeeAmount = 0,
+  relayerFeeUsd = 0,
+  isLoadingQuote = false,
   isOpen,
   onToggle,
 }: TransactionDetailsProps) {
@@ -39,6 +45,10 @@ export function TransactionDetails({
   const setReceiveAddress = useSetReceiveAddress();
   const setGasDrop = useSetGasDrop();
   const destinationChain = useDestinationChain();
+  const tokensByCompositeKey = useWeb3Store(
+    (state) => state.tokensByCompositeKey,
+  );
+  const sourceToken = useWeb3Store((state) => state.sourceToken);
 
   // ─── Local state ─────────────────────────────────────────────────────────────
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(isOpen || false);
@@ -47,6 +57,7 @@ export function TransactionDetails({
   const [slippageError, setSlippageError] = useState<string | null>(null);
   const [isEditingReceiveAddress, setIsEditingReceiveAddress] = useState(false);
   const [receiveAddressInput, setReceiveAddressInput] = useState("");
+  const [totalFeeUsd, setTotalFeeUsd] = useState(0);
 
   // ─── Gas Drop ─────────────────────────────────────────────────────────────
   const [isGasDropEnabled, setIsGasDropEnabled] = useState<boolean>(false);
@@ -242,6 +253,33 @@ export function TransactionDetails({
   const receivingAddress =
     transactionDetails.receiveAddress || activeWallet?.address || "0x000...000";
 
+  useEffect(() => {
+    if (isLoadingQuote) {
+      return;
+    }
+    // Helper function to calculate USD value for a token and amount
+    const calculateUsdValue = (token: Token | null, amount: number) => {
+      if (!token?.chainId || !token?.address) return 0;
+
+      const compositeKey = `${token.chainId}-${token.address}`;
+      const tokenValue = tokensByCompositeKey[compositeKey];
+
+      if (!tokenValue?.priceUsd) return 0;
+
+      return (relayerFeeUsd = Number(amount) * Number(tokenValue.priceUsd));
+    };
+
+    // Calculate and set values in one go
+    const protocolFeeUsd = calculateUsdValue(sourceToken, protocolFeeAmount);
+    const referrerFeeUsd = calculateUsdValue(sourceToken, referrerFeeAmount);
+    const totalFee = protocolFeeUsd + referrerFeeUsd + relayerFeeUsd;
+    console.log(`protocolFeeUsd: ${protocolFeeUsd}`);
+    console.log(`referrerFeeUsd: ${referrerFeeUsd}`);
+    console.log(`relayerFeeUsd: ${relayerFeeUsd}`);
+    console.log(`totalFee: ${totalFee}`);
+    setTotalFeeUsd(totalFee);
+  }, [tokensByCompositeKey, sourceToken, transactionDetails, isLoadingQuote]);
+
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="mt-2 text-white border-zinc-900 border-[1px] rounded-[3px] px-2">
@@ -327,6 +365,12 @@ export function TransactionDetails({
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Fee Row */}
+            <div className="text-left text-zinc-400">fee</div>
+            <div className="text-right numeric-input text-zinc-200">
+              {`$${totalFeeUsd.toFixed(2)}`}
             </div>
           </div>
 

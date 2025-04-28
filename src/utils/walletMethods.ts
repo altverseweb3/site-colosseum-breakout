@@ -403,10 +403,9 @@ interface TokenTransferState {
   estimatedTimeSeconds: number | null;
 
   // Add fee information
-  protocolFeeBps: number | null;
-  protocolFeeUsd: number | null;
+  protocolFeeAmount: number | null;
+  referrerFeeAmount: number | null;
   relayerFeeUsd: number | null;
-  totalFeeUsd: number | null;
 
   handleTransfer: () => Promise<void>;
 }
@@ -433,11 +432,14 @@ export function useTokenTransfer(
   >(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
-  // Add state for fee information
-  const [protocolFeeBps, setProtocolFeeBps] = useState<number | null>(null);
-  const [protocolFeeUsd, setProtocolFeeUsd] = useState<number | null>(null);
+  // Updated fee state variables
+  const [protocolFeeAmount, setProtocolFeeAmount] = useState<number | null>(
+    null,
+  );
+  const [referrerFeeAmount, setReferrerFeeAmount] = useState<number | null>(
+    null,
+  );
   const [relayerFeeUsd, setRelayerFeeUsd] = useState<number | null>(null);
-  const [totalFeeUsd, setTotalFeeUsd] = useState<number | null>(null);
 
   // Get relevant state from the web3 store
   const activeWallet = useWeb3Store((state) => state.activeWallet);
@@ -459,10 +461,9 @@ export function useTokenTransfer(
     setIsLoadingQuote(false);
     setEstimatedTimeSeconds(null);
     // Reset fee information
-    setProtocolFeeBps(null);
-    setProtocolFeeUsd(null);
+    setProtocolFeeAmount(null);
+    setReferrerFeeAmount(null);
     setRelayerFeeUsd(null);
-    setTotalFeeUsd(null);
   };
 
   // Convert slippage from string (e.g., "3.00%") to basis points (e.g., 300) or "auto"
@@ -510,7 +511,7 @@ export function useTokenTransfer(
 
   const isButtonDisabled: boolean = !isValid || isProcessing;
 
-  // Update this useEffect to include fee calculation
+  // Updated useEffect to handle fee calculation
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -588,9 +589,6 @@ export function useTokenTransfer(
         if (quotes && quotes.length > 0) {
           // Cast the quote to ExtendedQuote to access additional properties
           const quote = quotes[0] as ExtendedQuote;
-          const expectedAmountOut = quote.expectedAmountOut;
-          const inputAmount = parseFloat(amount);
-          const outputAmount = expectedAmountOut;
 
           // Extract ETA seconds if available
           if (quote.etaSeconds !== undefined) {
@@ -600,54 +598,64 @@ export function useTokenTransfer(
             setEstimatedTimeSeconds(null);
           }
 
-          // Calculate and set fee information
-          // Protocol fee in BPS
-          if (quote.protocolBps !== undefined) {
-            setProtocolFeeBps(quote.protocolBps);
+          console.log("---------- Fee Calculation ----------");
 
-            // Calculate protocol fee in USD
-            const protocolFeeUsdValue =
-              inputAmount * (quote.protocolBps / 10000);
-            setProtocolFeeUsd(parseFloat(protocolFeeUsdValue.toFixed(6)));
+          // Get effectiveAmountIn - this is the base amount for fee calculations
+          const effectiveAmountIn =
+            quote.effectiveAmountIn || parseFloat(amount);
 
+          // 1. Calculate protocol fee as an amount of effectiveAmountIn
+          if (quote.protocolBps !== undefined && quote.protocolBps !== null) {
+            // Calculate: effectiveAmountIn * (protocolBps / 10000)
+            const protocolFee = effectiveAmountIn * (quote.protocolBps / 10000);
+            setProtocolFeeAmount(protocolFee);
             console.log(
-              `Protocol fee: ${quote.protocolBps} BPS (${protocolFeeUsdValue.toFixed(6)} USD)`,
+              `Protocol fee: ${protocolFee} ${sourceToken?.ticker} (${quote.protocolBps} BPS of ${effectiveAmountIn})`,
             );
           } else {
-            setProtocolFeeBps(null);
-            setProtocolFeeUsd(null);
+            console.log("No protocol fee (protocolBps) defined in this quote");
+            setProtocolFeeAmount(null);
           }
 
-          // Relayer fee in USD
-          let relayerFee = null;
+          // 2. Calculate referrer fee as an amount of effectiveAmountIn
+          if (quote.referrerBps !== undefined && quote.referrerBps !== null) {
+            // Calculate: effectiveAmountIn * (referrerBps / 10000)
+            const referrerFee = effectiveAmountIn * (quote.referrerBps / 10000);
+            setReferrerFeeAmount(referrerFee);
+            console.log(
+              `Referrer fee: ${referrerFee} ${sourceToken?.ticker} (${quote.referrerBps} BPS of ${effectiveAmountIn})`,
+            );
+          } else {
+            console.log("No referrer fee (referrerBps) defined in this quote");
+            setReferrerFeeAmount(null);
+          }
+
+          // 3. Get relayer fee (already in USD)
           if (
             quote.clientRelayerFeeSuccess !== undefined &&
             quote.clientRelayerFeeSuccess !== null
           ) {
-            relayerFee = quote.clientRelayerFeeSuccess;
-          } else if (
-            quote.clientRelayerFeeRefund !== undefined &&
-            quote.clientRelayerFeeRefund !== null
-          ) {
-            relayerFee = quote.clientRelayerFeeRefund;
-          }
-
-          if (relayerFee !== null) {
-            setRelayerFeeUsd(parseFloat(relayerFee.toFixed(6)));
-            console.log(`Relayer fee: ${relayerFee.toFixed(6)} USD`);
+            setRelayerFeeUsd(quote.clientRelayerFeeSuccess);
+            console.log(
+              `Relayer fee: $${quote.clientRelayerFeeSuccess.toFixed(6)} USD`,
+            );
           } else {
+            console.log(
+              "No relayer fee (clientRelayerFeeSuccess) defined in this quote",
+            );
             setRelayerFeeUsd(null);
           }
 
-          // Calculate total fee - the difference between input and output
-          const totalFee = inputAmount - outputAmount;
+          // Log summary of the fee calculation
+          console.log("Fee Calculation Summary:", {
+            effectiveAmountIn,
+            protocolFeeAmount: protocolFeeAmount,
+            referrerFeeAmount: referrerFeeAmount,
+            relayerFeeUsd: relayerFeeUsd,
+          });
 
-          if (!isNaN(totalFee)) {
-            setTotalFeeUsd(parseFloat(totalFee.toFixed(6)));
-            console.log(`Total fee: ${totalFee.toFixed(6)} USD`);
-          } else {
-            setTotalFeeUsd(null);
-          }
+          // Process the expected amount for display
+          const expectedAmountOut = quote.expectedAmountOut;
 
           // For bridging, we use the source token's decimals
           const token =
@@ -659,18 +667,6 @@ export function useTokenTransfer(
           ).toFixed(Math.min(decimals, 6));
 
           setReceiveAmount(formattedAmount);
-
-          console.log(`${options.type.toUpperCase()} Quote Updated:`, {
-            requestId: currentRequestId,
-            amount: amount,
-            slippageBps: slippageBps,
-            raw: expectedAmountOut,
-            formatted: formattedAmount,
-            etaSeconds: quote.etaSeconds,
-            protocolBps: quote.protocolBps,
-            relayerFee: relayerFee,
-            totalFee: totalFee,
-          });
         } else {
           failQuote();
         }
@@ -890,11 +886,10 @@ export function useTokenTransfer(
     destinationToken,
     estimatedTimeSeconds,
 
-    // Fee information
-    protocolFeeBps,
-    protocolFeeUsd,
+    // Updated fee information
+    protocolFeeAmount,
+    referrerFeeAmount,
     relayerFeeUsd,
-    totalFeeUsd,
 
     // Actions
     handleTransfer,

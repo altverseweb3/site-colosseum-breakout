@@ -29,9 +29,9 @@ interface TokenTransferProps {
   // Token selection state
   hasSourceToken?: boolean;
   hasDestinationToken?: boolean;
-  protocolFeeUsd?: number;
+  protocolFeeAmount?: number;
+  referrerFeeAmount?: number;
   relayerFeeUsd?: number;
-  totalFeeUsd?: number;
 }
 
 export const TokenTransfer: React.FC<TokenTransferProps> = ({
@@ -52,9 +52,9 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
   // Token selection state
   hasSourceToken = false,
   hasDestinationToken = false,
-  protocolFeeUsd = 0,
+  protocolFeeAmount = 0,
+  referrerFeeAmount = 0,
   relayerFeeUsd = 0,
-  totalFeeUsd = 0,
 }) => {
   // State to track if the input should be enabled
   const [isInputEnabled, setIsInputEnabled] = useState(false);
@@ -201,9 +201,9 @@ export const TokenTransfer: React.FC<TokenTransferProps> = ({
           enforceSourceChain={hasActiveWallet}
           renderActionButton={renderButtonOrModal}
           estimatedTime={estimatedTimeSeconds}
-          protocolFeeUsd={protocolFeeUsd}
+          protocolFeeAmount={protocolFeeAmount}
+          referrerFeeAmount={referrerFeeAmount}
           relayerFeeUsd={relayerFeeUsd}
-          totalFeeUsd={totalFeeUsd}
           detailsOpen={showDetails}
           onDetailsToggle={() => setShowDetails(!showDetails)}
           isLoadingQuote={isLoadingQuote} // Pass the loading state to SwapInterface
