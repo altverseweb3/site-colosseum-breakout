@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useIdleTimer } from "react-idle-timer";
 import useWeb3Store from "@/store/web3Store";
 import { getPricesAndBalances } from "@/utils/tokenApiMethods";
+import { useAppKitAccount } from "@reown/appkit/react";
 
 /**
  * Component that initializes token data on dApp startup.
@@ -15,7 +16,7 @@ const TokenInitializer: React.FC = () => {
   const tokenCount = useWeb3Store((state) => state.allTokensList.length);
   const sourceChain = useWeb3Store((state) => state.sourceChain);
   const destinationChain = useWeb3Store((state) => state.destinationChain);
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const { address } = useAppKitAccount();
   const destinationToken = useWeb3Store((state) => state.destinationToken);
   const sourceToken = useWeb3Store((state) => state.sourceToken);
 
@@ -37,14 +38,14 @@ const TokenInitializer: React.FC = () => {
       const fetchData = () => {
         if (!isIdle) {
           console.log("Fetching token data - user is active");
-          getPricesAndBalances();
+          getPricesAndBalances(address);
         } else {
           console.log("Skipping token data fetch - user is idle");
         }
       };
 
       // Initial fetch when dependencies change (regardless of idle state)
-      getPricesAndBalances();
+      getPricesAndBalances(address);
 
       // Set up interval to run every 10 seconds
       const intervalId = setInterval(fetchData, 10000); // 10 seconds
@@ -56,7 +57,7 @@ const TokenInitializer: React.FC = () => {
     sourceChain,
     destinationChain,
     tokenCount,
-    activeWallet,
+    address,
     isIdle,
     destinationToken,
     sourceToken,

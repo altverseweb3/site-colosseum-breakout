@@ -4,9 +4,7 @@ import { MainNav } from "@/components/layout/MainNav";
 import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { useState, useEffect } from "react";
-import useWeb3Store from "@/store/web3Store";
-import { disconnectMetamask, truncateAddress } from "@/utils/walletMethods";
-import { toast } from "sonner";
+import { truncateAddress } from "@/utils/walletMethods";
 import {
   Sheet,
   SheetContent,
@@ -16,12 +14,14 @@ import {
 } from "@/components/ui/Sheet";
 import { Menu } from "lucide-react";
 import BrandedButton from "@/components/ui/BrandedButton";
-import { ConnectWalletModal } from "@/components/ui/ConnectWalletModal";
 import Link from "next/link";
+import { useAppKit } from "@reown/appkit/react";
+import { useAppKitAccount } from "@reown/appkit/react";
 
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const { open } = useAppKit();
+  const { address } = useAppKitAccount();
 
   useEffect(() => {
     const handleResize = () => {
@@ -40,20 +40,8 @@ export function SiteHeader() {
     };
   }, [isOpen]); // Only re-run if isOpen changes
 
-  const handleDisconnect = async () => {
-    if (activeWallet) {
-      try {
-        await disconnectMetamask();
-        setIsOpen(false); // Close the sheet after disconnecting
-      } catch (error) {
-        toast.error("Failed to disconnect wallet.");
-        console.error("Failed to disconnect wallet: ", error);
-      }
-    }
-  };
-
-  const handleSheetClose = () => {
-    setIsOpen(false);
+  const handleConnect = () => {
+    open();
   };
 
   return (
@@ -115,52 +103,27 @@ export function SiteHeader() {
                 <nav className="flex flex-col gap-2">
                   <MainNav onNavigate={() => setIsOpen(false)} />
                 </nav>
-                {activeWallet ? (
-                  <BrandedButton
-                    className="md:inline-flex whitespace-nowrap text-sm h-[30px]"
-                    iconClassName="h-4 w-4"
-                    onClick={handleDisconnect}
-                    iconName="Wallet"
-                    buttonText={truncateAddress(activeWallet.address)}
-                  />
-                ) : (
-                  <ConnectWalletModal
-                    onSuccess={handleSheetClose}
-                    trigger={
-                      <BrandedButton
-                        className="md:inline-flex whitespace-nowrap text-sm h-[30px]"
-                        iconClassName="h-4 w-4"
-                        iconName="Wallet"
-                        buttonText="connect wallet"
-                      />
-                    }
-                  />
-                )}
+                <BrandedButton
+                  className="md:inline-flex whitespace-nowrap text-sm h-[30px]"
+                  iconClassName="h-4 w-4"
+                  onClick={handleConnect}
+                  iconName="Wallet"
+                  buttonText={
+                    address ? truncateAddress(address) : "connect wallet"
+                  }
+                />
               </div>
             </SheetContent>
           </Sheet>
 
           {/* Desktop Wallet Button */}
-          {activeWallet ? (
-            <BrandedButton
-              className="hidden md:inline-flex whitespace-nowrap text-sm h-[30px]"
-              iconClassName="h-4 w-4"
-              onClick={handleDisconnect}
-              iconName="Wallet"
-              buttonText={truncateAddress(activeWallet.address)}
-            />
-          ) : (
-            <ConnectWalletModal
-              trigger={
-                <BrandedButton
-                  className="hidden md:inline-flex whitespace-nowrap text-sm h-[30px]"
-                  iconClassName="h-4 w-4"
-                  iconName="Wallet"
-                  buttonText="connect wallet"
-                />
-              }
-            />
-          )}
+          <BrandedButton
+            className="hidden md:inline-flex whitespace-nowrap text-sm h-[30px]"
+            iconClassName="h-4 w-4"
+            onClick={handleConnect}
+            iconName="Wallet"
+            buttonText={address ? truncateAddress(address) : "connect wallet"}
+          />
         </div>
       </div>
     </header>

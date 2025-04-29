@@ -9,13 +9,14 @@ import {
 } from "lucide-react";
 import { Slider } from "@/components/ui/Slider";
 import { Switch } from "@/components/ui/Switch";
-import useWeb3Store, {
+import {
   useTransactionDetails,
   useSetSlippageValue,
   useSetReceiveAddress,
   useSetGasDrop,
   useDestinationChain,
 } from "@/store/web3Store";
+import { useAppKitAccount } from "@reown/appkit/react";
 
 interface TransactionDetailsProps {
   protocolFeeUsd?: number;
@@ -33,7 +34,7 @@ export function TransactionDetails({
   onToggle,
 }: TransactionDetailsProps) {
   // ─── Zustand store hooks ─────────────────────────────────────────────────────
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const { address } = useAppKitAccount();
   const transactionDetails = useTransactionDetails();
   const setSlippageValue = useSetSlippageValue();
   const setReceiveAddress = useSetReceiveAddress();
@@ -86,11 +87,11 @@ export function TransactionDetails({
   const saveReceiveAddress = useCallback(() => {
     if (/^0x[a-fA-F0-9]{40}$/.test(receiveAddressInput)) {
       setReceiveAddress(receiveAddressInput);
-    } else if (!receiveAddressInput && activeWallet) {
-      setReceiveAddressInput(activeWallet.address);
+    } else if (!receiveAddressInput && address) {
+      setReceiveAddressInput(address);
     }
     setIsEditingReceiveAddress(false);
-  }, [receiveAddressInput, activeWallet, setReceiveAddress]);
+  }, [receiveAddressInput, address, setReceiveAddress]);
 
   // ─── Effects ────────────────────────────────────────────────────────────────
 
@@ -109,8 +110,8 @@ export function TransactionDetails({
 
     if (transactionDetails.receiveAddress) {
       setReceiveAddressInput(transactionDetails.receiveAddress);
-    } else if (activeWallet) {
-      setReceiveAddressInput(activeWallet.address);
+    } else if (address) {
+      setReceiveAddressInput(address);
     }
 
     // run once
@@ -240,7 +241,7 @@ export function TransactionDetails({
 
   // Determine what to show as the current receiving address
   const receivingAddress =
-    transactionDetails.receiveAddress || activeWallet?.address || "0x000...000";
+    transactionDetails.receiveAddress || address || "0x000...000";
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (

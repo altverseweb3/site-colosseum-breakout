@@ -11,9 +11,6 @@ import {
   polygon,
 } from "@reown/appkit/networks";
 
-// import { useAppKitAccount } from "@reown/appkit/react";
-// import { useAppKitNetwork } from "@reown/appkit/react";
-
 // 1. Get projectId at https://cloud.reown.com
 const projectId = "7499f033392cb44c546b3c9de7550340";
 
@@ -41,7 +38,7 @@ createAppKit({
   networks: [mainnet, arbitrum, avalanche, base, optimism, polygon],
   projectId,
   features: {
-    analytics: true, // Optional - defaults to your Cloud configuration
+    analytics: true,
   },
   themeVariables: {
     "--w3m-color-mix": "#000000",
@@ -55,17 +52,5 @@ createAppKit({
 import { ReactNode } from "react";
 
 export function AppKit({ children }: { children: ReactNode }) {
-  // const eip155Account = useAppKitAccount({ namespace: "eip155" });
-  // const appKitNetwork = useAppKitNetwork();
-  // useEffect(() => {
-  //   if (eip155Account.isConnected) {
-  //     console.log("Connected to AppKit");
-  //     console.log("Account:", eip155Account.address);
-  //     console.log("Chain ID:", eip155Account.caipAddress);
-  //     console.log("Network Chain ID:", appKitNetwork.chainId);
-  //   } else {
-  //     console.log("Not connected to AppKit");
-  //   }
-  // }, [eip155Account.isConnected]);
   return <>{children}</>;
 }

@@ -8,8 +8,7 @@ export interface WalletInfo {
 
 export enum WalletType {
   METAMASK = "METAMASK",
-  COINBASE = "COINBASE",
-  WALLET_CONNECT = "WALLET_CONNECT",
+  REOWN = "REOWN",
 }
 
 export type MayanChainName =

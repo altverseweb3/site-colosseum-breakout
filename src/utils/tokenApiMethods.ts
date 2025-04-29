@@ -52,9 +52,10 @@ function formatTokenBalance(balanceStr: string, decimals: number): string {
   }
 }
 
-export async function getPricesAndBalances(): Promise<boolean> {
+export async function getPricesAndBalances(
+  address: string | undefined,
+): Promise<boolean> {
   const store = useWeb3Store.getState();
-  const activeWallet = store.activeWallet;
 
   store.setTokensLoading(true);
 
@@ -62,12 +63,12 @@ export async function getPricesAndBalances(): Promise<boolean> {
     const [sourceResult, destinationResult] = await Promise.allSettled([
       getPricesAndBalancesForChain(
         store.sourceChain.chainId,
-        activeWallet?.address,
+        address || undefined,
         "source",
       ),
       getPricesAndBalancesForChain(
         store.destinationChain.chainId,
-        activeWallet?.address,
+        address || undefined,
         "destination",
       ),
     ]);
