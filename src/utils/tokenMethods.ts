@@ -10,7 +10,7 @@ interface TokenDataItem {
   name: string;
   contract_address: string;
   local_image: string;
-  alchemy_metadata: {
+  metadata: {
     name: string;
     symbol: string;
     decimals: number;
@@ -59,9 +59,7 @@ export const loadTokensForChain = async (
             ? "0x0000000000000000000000000000000000000000"
             : item.contract_address,
         decimals:
-          item.contract_address === "native"
-            ? 18
-            : item.alchemy_metadata.decimals,
+          item.contract_address === "native" ? 18 : item.metadata.decimals,
         chainId: numericChainId,
         isWalletToken: false,
         native: false,
