@@ -11,15 +11,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/StyledDialog";
 import { Button } from "@/components/ui/Button";
-import { connectMetamask } from "@/utils/walletMethods";
 import { toast } from "sonner";
 import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
+import { useAppKit } from "@reown/appkit/react";
 
 type WalletOption = {
   id: WalletType;
   name: string;
-  icon: string;
+  icons: string[];
   disabled: boolean;
   background: string;
   connectMethod: () => Promise<WalletInfo | null>;
@@ -32,32 +32,39 @@ export const ConnectWalletModal = ({
   trigger?: React.ReactNode;
   onSuccess?: () => void;
 }) => {
-  const [open, setOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [connecting, setConnecting] = useState<WalletType | null>(null);
+  const { open } = useAppKit();
 
   const walletOptions: WalletOption[] = [
     {
-      id: WalletType.METAMASK,
-      name: "MetaMask",
-      icon: "/wallets/metamask.svg",
+      id: WalletType.REOWN,
+      name: "evm wallets",
+      icons: ["/wallets/metamask.svg", "/wallets/walletconnect.svg"],
       disabled: false,
-      background: "bg-[#E27625]/20",
-      connectMethod: connectMetamask,
+      background: "bg-[#E27625]/0",
+      connectMethod: async () => {
+        open();
+        return null;
+      },
     },
     {
-      id: WalletType.COINBASE,
-      name: "Coinbase",
-      icon: "/wallets/coinbase.svg",
-      disabled: true,
-      background: "bg-[#1951E3]/20",
-      connectMethod: async () => null,
+      id: WalletType.REOWN,
+      name: "solana wallets",
+      icons: ["/wallets/phantom.svg"],
+      disabled: false,
+      background: "bg-[#E27625]/0",
+      connectMethod: async () => {
+        open();
+        return null;
+      },
     },
     {
-      id: WalletType.WALLET_CONNECT,
-      name: "WalletConnect",
-      icon: "/wallets/walletconnect.svg",
-      disabled: true,
-      background: "bg-[#217FFC]/20",
+      id: WalletType.SUI,
+      name: "sui",
+      icons: ["/wallets/sui.svg"],
+      disabled: false,
+      background: "bg-[#4DA2FF]/0",
       connectMethod: async () => null,
     },
   ];
@@ -75,7 +82,7 @@ export const ConnectWalletModal = ({
       const result = await wallet.connectMethod();
 
       if (result) {
-        setOpen(false);
+        setModalOpen(false);
         toast.success("Wallet connected successfully.");
         if (onSuccess) onSuccess();
       } else {
@@ -90,7 +97,7 @@ export const ConnectWalletModal = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={modalOpen} onOpenChange={setModalOpen}>
       {trigger ? (
         <DialogTrigger asChild>{trigger}</DialogTrigger>
       ) : (
@@ -134,17 +141,22 @@ export const ConnectWalletModal = ({
               </div>
 
               <div
-                className={`h-8 w-8 relative flex items-center justify-center rounded-md ${
+                className={`h-8 w-auto relative flex items-center justify-center rounded-md ${
                   wallet.background
                 }`}
               >
-                <Image
-                  src={wallet.icon}
-                  alt={wallet.name}
-                  width={24}
-                  height={24}
-                  className="object-contain"
-                />
+                <div className="flex items-center">
+                  {wallet.icons.map((icon, index) => (
+                    <Image
+                      key={index}
+                      src={icon}
+                      alt={`${wallet.name} icon ${index + 1}`}
+                      width={24}
+                      height={24}
+                      className="object-contain mx-1"
+                    />
+                  ))}
+                </div>
               </div>
             </Button>
           ))}

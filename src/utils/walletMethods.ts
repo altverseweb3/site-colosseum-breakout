@@ -38,7 +38,7 @@ export async function connectMetamask(): Promise<WalletInfo | null> {
     }
 
     const walletInfo: WalletInfo = {
-      type: WalletType.METAMASK,
+      type: WalletType.REOWN,
       name: "MetaMask",
       address,
       chainId: parseInt(chainId, 16),
@@ -54,10 +54,10 @@ export async function connectMetamask(): Promise<WalletInfo | null> {
       const newAccounts = accounts as string[];
       if (!newAccounts || newAccounts.length === 0) {
         // MetaMask was locked or disconnected
-        store.removeWallet(WalletType.METAMASK);
+        store.removeWallet(WalletType.REOWN);
       } else {
         // Account was switched
-        store.updateWalletAddress(WalletType.METAMASK, newAccounts[0]);
+        store.updateWalletAddress(WalletType.REOWN, newAccounts[0]);
       }
     });
 
@@ -65,7 +65,7 @@ export async function connectMetamask(): Promise<WalletInfo | null> {
     window.ethereum.on("chainChanged", (chainId: unknown) => {
       const store = useWeb3Store.getState();
       store.updateWalletChainId(
-        WalletType.METAMASK,
+        WalletType.REOWN,
         parseInt(chainId as string, 16),
       );
     });
@@ -73,7 +73,7 @@ export async function connectMetamask(): Promise<WalletInfo | null> {
     // Set up disconnect listener
     window.ethereum.on("disconnect", () => {
       const store = useWeb3Store.getState();
-      store.removeWallet(WalletType.METAMASK);
+      store.removeWallet(WalletType.REOWN);
     });
 
     return walletInfo;
@@ -93,7 +93,7 @@ export async function disconnectMetamask(): Promise<void> {
 
       // Update the store
       const store = useWeb3Store.getState();
-      store.removeWallet(WalletType.METAMASK);
+      store.removeWallet(WalletType.REOWN);
     }
   } catch (error) {
     console.error("Error disconnecting from MetaMask:", error);
@@ -134,7 +134,7 @@ export async function ensureCorrectChain(targetChain: Chain): Promise<boolean> {
   );
 
   // Handle different wallet types
-  if (activeWallet.type === WalletType.METAMASK) {
+  if (activeWallet.type === WalletType.REOWN) {
     return switchMetamaskChain(targetChain);
   }
 
