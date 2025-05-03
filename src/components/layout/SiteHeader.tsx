@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { useState, useEffect } from "react";
 import useWeb3Store from "@/store/web3Store";
-import { disconnectMetamask, truncateAddress } from "@/utils/walletMethods";
+import { truncateAddress } from "@/utils/walletMethods";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -18,10 +18,16 @@ import { Menu } from "lucide-react";
 import BrandedButton from "@/components/ui/BrandedButton";
 import { ConnectWalletModal } from "@/components/ui/ConnectWalletModal";
 import Link from "next/link";
+import { useWalletConnection } from "@/utils/walletMethods";
 
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
+
   const activeWallet = useWeb3Store((state) => state.activeWallet);
+
+  const { disconnectWallet, getWalletDisplayInfo } = useWalletConnection();
+
+  const walletDisplay = activeWallet ? getWalletDisplayInfo() : null;
 
   useEffect(() => {
     const handleResize = () => {
@@ -43,7 +49,9 @@ export function SiteHeader() {
   const handleDisconnect = async () => {
     if (activeWallet) {
       try {
-        await disconnectMetamask();
+        // Use our new disconnectWallet function from the hook
+        await disconnectWallet();
+        toast.success("Wallet disconnected");
         setIsOpen(false); // Close the sheet after disconnecting
       } catch (error) {
         toast.error("Failed to disconnect wallet.");
@@ -54,6 +62,16 @@ export function SiteHeader() {
 
   const handleSheetClose = () => {
     setIsOpen(false);
+  };
+
+  const getWalletButtonText = () => {
+    if (!activeWallet) return "connect wallet";
+
+    if (walletDisplay) {
+      return walletDisplay.address;
+    }
+
+    return truncateAddress(activeWallet.address);
   };
 
   return (
@@ -121,7 +139,7 @@ export function SiteHeader() {
                     iconClassName="h-4 w-4"
                     onClick={handleDisconnect}
                     iconName="Wallet"
-                    buttonText={truncateAddress(activeWallet.address)}
+                    buttonText={getWalletButtonText()}
                   />
                 ) : (
                   <ConnectWalletModal
@@ -147,7 +165,7 @@ export function SiteHeader() {
               iconClassName="h-4 w-4"
               onClick={handleDisconnect}
               iconName="Wallet"
-              buttonText={truncateAddress(activeWallet.address)}
+              buttonText={getWalletButtonText()}
             />
           ) : (
             <ConnectWalletModal
