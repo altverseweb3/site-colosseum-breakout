@@ -1,11 +1,12 @@
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { BrandedButton } from "@/components/ui/BrandedButton";
 import { TransactionDetails } from "@/components/ui/TransactionDetails";
-import { useChainSwitch } from "@/utils/walletMethods";
+import { useChainSwitch, useWalletConnection } from "@/utils/walletMethods";
 import useWeb3Store from "@/store/web3Store";
 import { toast } from "sonner";
 import { AvailableIconName } from "@/types/ui";
+import { WalletType } from "@/types/web3";
 
 interface SwapInterfaceProps {
   children: ReactNode;
@@ -46,26 +47,48 @@ export function SwapInterface({
     switchToSourceChain,
   } = useChainSwitch();
 
+  const { chainId: reownChainId, isConnected } = useWalletConnection();
+
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const activeWallet = useWeb3Store((state) => state.activeWallet);
   const sourceChain = useWeb3Store((state) => state.sourceChain);
 
   const checkCurrentChain = async (): Promise<boolean> => {
-    if (!activeWallet || !window.ethereum) {
+    if (!activeWallet) {
       return false;
     }
-
     try {
-      const chainIdHex = await window.ethereum.request<string>({
-        method: "eth_chainId",
-      });
-      const currentChainId = parseInt(chainIdHex as string, 16);
+      let currentChainId: number | undefined;
 
-      console.log("Current MetaMask chainId:", currentChainId);
+      // Check if we're using Reown wallet
+      if (
+        activeWallet.type === WalletType.REOWN_EVM ||
+        activeWallet.type === WalletType.REOWN_SOL
+      ) {
+        // For Reown wallets, use the chainId from our hook
+        if (reownChainId !== undefined) {
+          // Convert to number if it's a string
+          currentChainId =
+            typeof reownChainId === "string"
+              ? parseInt(reownChainId, 10)
+              : reownChainId;
+        }
+      }
+
+      // If we still don't have a chainId, use the one from activeWallet
+      if (currentChainId === undefined) {
+        currentChainId = activeWallet.chainId;
+      }
+
+      console.log("Current chain ID:", currentChainId);
       console.log("Source chain ID:", sourceChain.chainId);
 
-      if (activeWallet.chainId !== currentChainId) {
+      // Update the store if the chain ID has changed
+      if (
+        activeWallet.chainId !== currentChainId &&
+        currentChainId !== undefined
+      ) {
         const store = useWeb3Store.getState();
         store.updateWalletChainId(activeWallet.type, currentChainId);
       }
@@ -76,6 +99,21 @@ export function SwapInterface({
       return false;
     }
   };
+
+  // Update store when Reown chainId changes
+  useEffect(() => {
+    if (isConnected && activeWallet && reownChainId !== undefined) {
+      const numericChainId =
+        typeof reownChainId === "string"
+          ? parseInt(reownChainId, 10)
+          : reownChainId;
+
+      if (activeWallet.chainId !== numericChainId) {
+        const store = useWeb3Store.getState();
+        store.updateWalletChainId(activeWallet.type, numericChainId);
+      }
+    }
+  }, [reownChainId, isConnected, activeWallet]);
 
   React.useEffect(() => {
     if (chainSwitchError) {
@@ -122,14 +160,6 @@ export function SwapInterface({
           id: toastId,
           description: `Successfully switched to ${sourceChain.name}`,
         });
-
-        const verifySwitch = await checkCurrentChain();
-        if (!verifySwitch) {
-          toast.error("Network mismatch", {
-            description: `Your wallet is still not on ${sourceChain.name}. Please try again.`,
-          });
-          return;
-        }
       }
 
       if (actionButton?.onClick) {

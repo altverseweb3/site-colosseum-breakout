@@ -1,104 +1,501 @@
 import { WalletInfo, WalletType, Token, Chain } from "@/types/web3";
 import useWeb3Store from "@/store/web3Store";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { toast } from "sonner";
+import {
+  useAppKitAccount,
+  useAppKit,
+  useDisconnect,
+  useAppKitNetwork,
+  useWalletInfo,
+} from "@reown/appkit/react";
+import { ethers } from "ethers";
+import { ChainNamespace } from "@/types/web3";
+import { defineChain } from "@reown/appkit/networks";
 import { getMayanQuote, executeEvmSwap } from "@/utils/mayanSwapMethods";
 import { Quote } from "@mayanfinance/swap-sdk";
-import { ethers } from "ethers";
-
-function getEthersProvider(): ethers.BrowserProvider {
-  if (typeof window === "undefined" || !window.ethereum) {
-    throw new Error("MetaMask not installed");
-  }
-  return new ethers.BrowserProvider(window.ethereum);
+import { toast } from "sonner";
+import { useWalletProviderAndSigner } from "@/utils/mayanSwapMethods";
+/**
+ * Creates a properly formatted CAIP network ID with correct TypeScript typing
+ * @param namespace The chain namespace (eip155, solana, etc)
+ * @param chainId The chain ID
+ * @returns A properly typed CAIP network ID
+ */
+function createCaipNetworkId(
+  namespace: "eip155" | "solana" | "bip122" | "polkadot",
+  chainId: number,
+): `${typeof namespace}:${number}` {
+  return `${namespace}:${chainId}` as `${typeof namespace}:${number}`;
 }
 
-export async function connectMetamask(): Promise<WalletInfo | null> {
-  if (!window.ethereum) {
-    throw new Error("Metamask not installed");
-  }
+/**
+ * Custom hook for wallet connections via Reown AppKit
+ * Handles both EVM (MetaMask) and Solana (Phantom) wallets through Reown
+ */
+export function useWalletConnection() {
+  // Get the Reown AppKit modal control functions
+  const { open, close } = useAppKit();
 
-  try {
-    const accounts = await window.ethereum.request<string[]>({
-      method: "eth_requestAccounts",
-    });
+  // Get account information from Reown
+  const { address, caipAddress, isConnected, status, embeddedWalletInfo } =
+    useAppKitAccount();
 
-    const chainId = await window.ethereum.request<string>({
-      method: "eth_chainId",
-    });
+  // Get wallet information (used to determine which wallet was used)
+  const { walletInfo: reownWalletInfo } = useWalletInfo();
 
-    if (!accounts || accounts.length === 0 || !accounts[0]) {
-      throw new Error("No accounts found");
+  // Get network/chain info from Reown
+  const { caipNetwork, caipNetworkId, chainId, switchNetwork } =
+    useAppKitNetwork();
+
+  // Get the disconnect function from Reown
+  const { disconnect } = useDisconnect();
+
+  // Track connection status in local state
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Determine wallet type based on information from Reown
+  const getWalletType = useCallback(() => {
+    if (!reownWalletInfo || !reownWalletInfo.name) return WalletType.REOWN_EVM; // Default to EVM
+
+    const walletNameLower = reownWalletInfo.name.toLowerCase();
+
+    // Check for Solana wallets (Phantom)
+    if (
+      walletNameLower.includes("phantom") ||
+      (caipNetworkId && caipNetworkId.startsWith("solana:"))
+    ) {
+      return WalletType.REOWN_SOL;
     }
 
-    const address = accounts[0];
+    // Default to EVM (MetaMask, etc.)
+    return WalletType.REOWN_EVM;
+  }, [reownWalletInfo, caipNetworkId]);
 
-    if (!chainId) {
-      throw new Error("No chainId found");
-    }
+  // Effect to sync Reown wallet state with our app's store
+  useEffect(() => {
+    if (isConnected && address) {
+      // Extract chain ID from CAIP network ID if available
+      // Always ensure chainId is a number
+      let currentChainId: number | undefined;
 
-    const walletInfo: WalletInfo = {
-      type: WalletType.REOWN,
-      name: "MetaMask",
-      address,
-      chainId: parseInt(chainId, 16),
-    };
-
-    // Update the store immediately on connection
-    const store = useWeb3Store.getState();
-    store.addWallet(walletInfo);
-
-    // Set up account change listener
-    window.ethereum.on("accountsChanged", (accounts: unknown) => {
-      const store = useWeb3Store.getState();
-      const newAccounts = accounts as string[];
-      if (!newAccounts || newAccounts.length === 0) {
-        // MetaMask was locked or disconnected
-        store.removeWallet(WalletType.REOWN);
-      } else {
-        // Account was switched
-        store.updateWalletAddress(WalletType.REOWN, newAccounts[0]);
+      // If chainId is provided by Reown, ensure it's a number
+      if (chainId !== undefined) {
+        currentChainId =
+          typeof chainId === "string" ? parseInt(chainId, 10) : chainId;
       }
-    });
+      // Otherwise try to extract from CAIP network ID
+      else if (caipNetworkId) {
+        // Parse CAIP format (e.g., "eip155:1") to extract chainId
+        const parts = caipNetworkId.split(":");
+        if (parts.length === 2) {
+          currentChainId = parseInt(parts[1], 10);
+        }
+      }
 
-    // Set up chain change listener
-    window.ethereum.on("chainChanged", (chainId: unknown) => {
+      // Get wallet name from Reown
+      let walletName = "Reown";
+
+      // If we have wallet info, get actual wallet name for display purposes
+      if (reownWalletInfo && reownWalletInfo.name) {
+        walletName = reownWalletInfo.name;
+      }
+
+      // Determine the wallet type
+      const walletType = getWalletType();
+
+      // Create wallet info object for our store
+      const walletInfo: WalletInfo = {
+        type: walletType, // Use the appropriate wallet type
+        name: walletName,
+        address,
+        chainId: currentChainId || 1, // Default to Ethereum mainnet (1) if not available
+      };
+
+      // Update our app's store
       const store = useWeb3Store.getState();
-      store.updateWalletChainId(
-        WalletType.REOWN,
-        parseInt(chainId as string, 16),
+      store.addWallet(walletInfo);
+      store.setActiveWallet(walletType);
+
+      console.log(
+        `Wallet connected and synced with store: ${walletType}`,
+        walletInfo,
       );
-    });
-
-    // Set up disconnect listener
-    window.ethereum.on("disconnect", () => {
+    } else if (!isConnected) {
+      // Clear the wallets from store when disconnected
       const store = useWeb3Store.getState();
-      store.removeWallet(WalletType.REOWN);
-    });
+      store.removeWallet(WalletType.REOWN_EVM);
+      store.removeWallet(WalletType.REOWN_SOL);
+    }
+  }, [
+    address,
+    isConnected,
+    caipNetworkId,
+    chainId,
+    reownWalletInfo,
+    getWalletType,
+  ]);
 
-    return walletInfo;
-  } catch (error) {
-    console.error("Error connecting to MetaMask:", error);
-    return null;
-  }
+  // Listen for chain/network changes and update store
+  useEffect(() => {
+    if (isConnected && chainId !== undefined) {
+      const store = useWeb3Store.getState();
+      const activeWallet = store.activeWallet;
+
+      // Convert chainId to a number if it's a string
+      const numericChainId =
+        typeof chainId === "string" ? parseInt(chainId, 10) : chainId;
+
+      if (activeWallet && activeWallet.chainId !== numericChainId) {
+        store.updateWalletChainId(activeWallet.type, numericChainId);
+        console.log(`Chain updated to ${numericChainId}`);
+      }
+    }
+  }, [chainId, isConnected]);
+
+  /**
+   * Connect to a wallet via Reown AppKit
+   * @param walletType Optional specific wallet to connect to
+   */
+  const connectWallet = useCallback(
+    (walletType?: "metamask" | "phantom" | "walletConnect") => {
+      setConnecting(true);
+      setError(null);
+
+      try {
+        if (walletType) {
+          // Open the modal with specific wallet type
+          let namespace: ChainNamespace | undefined;
+
+          if (walletType === "phantom") {
+            namespace = "solana";
+          } else if (walletType === "metamask") {
+            namespace = "eip155";
+          }
+
+          if (walletType === "walletConnect") {
+            // For WalletConnect, just open the standard view
+            open({ view: "Connect" });
+          } else if (namespace) {
+            // For specific wallets, open with namespace
+            open({ view: "Connect", namespace });
+          } else {
+            // Default fallback
+            open({ view: "Connect" });
+          }
+        } else {
+          // Open the general connect modal
+          open({ view: "Connect" });
+        }
+      } catch (error) {
+        console.error("Error initiating wallet connection:", error);
+        setError(
+          typeof error === "string" ? error : "Failed to connect wallet",
+        );
+      } finally {
+        setConnecting(false);
+      }
+    },
+    [open],
+  );
+
+  /**
+   * Disconnect the current wallet
+   */
+  const disconnectWallet = useCallback(async () => {
+    try {
+      // Use Reown's disconnect function
+      await disconnect();
+
+      // Clean up our app's store
+      const store = useWeb3Store.getState();
+      store.removeWallet(WalletType.REOWN_EVM);
+      store.removeWallet(WalletType.REOWN_SOL);
+
+      console.log("Wallet disconnected");
+    } catch (error) {
+      console.error("Error disconnecting wallet:", error);
+      throw error;
+    }
+  }, [disconnect]);
+
+  /**
+   * Checks if the connected wallet is MetaMask (based on wallet name)
+   */
+  const isMetaMask = useCallback(() => {
+    if (!reownWalletInfo || !reownWalletInfo.name) return false;
+    return reownWalletInfo.name.toLowerCase().includes("metamask");
+  }, [reownWalletInfo]);
+
+  /**
+   * Checks if the connected wallet is Phantom (based on wallet name)
+   */
+  const isPhantom = useCallback(() => {
+    if (!reownWalletInfo || !reownWalletInfo.name) return false;
+    return reownWalletInfo.name.toLowerCase().includes("phantom");
+  }, [reownWalletInfo]);
+
+  /**
+   * Get current wallet type (EVM or SOL)
+   */
+  const getCurrentWalletType = useCallback(() => {
+    return getWalletType();
+  }, [getWalletType]);
+
+  /**
+   * Get wallet connection details for UI display
+   */
+  const getWalletDisplayInfo = useCallback(() => {
+    const walletName = reownWalletInfo?.name || "Wallet";
+    const shortenedAddress = address
+      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+      : "";
+
+    let icon = ""; // Default icon path can be added here
+
+    // Determine icon based on wallet name
+    if (isMetaMask()) {
+      icon = "/icons/metamask.svg"; // Update with your actual path
+    } else if (isPhantom()) {
+      icon = "/icons/phantom.svg"; // Update with your actual path
+    }
+
+    return {
+      name: walletName,
+      address: shortenedAddress,
+      fullAddress: address,
+      icon,
+      isMetaMask: isMetaMask(),
+      isPhantom: isPhantom(),
+      walletType: getWalletType(),
+    };
+  }, [reownWalletInfo, address, isMetaMask, isPhantom, getWalletType]);
+
+  return {
+    // Connection state
+    address,
+    caipAddress,
+    isConnected,
+    connecting,
+    error,
+    status,
+
+    // Wallet info
+    walletInfo: reownWalletInfo,
+    embeddedWalletInfo,
+    isMetaMask: isMetaMask(),
+    isPhantom: isPhantom(),
+
+    // Network/chain info
+    chainId,
+    caipNetwork,
+    caipNetworkId,
+
+    // Actions
+    connectWallet,
+    disconnectWallet,
+    openModal: open,
+    closeModal: close,
+    switchNetwork,
+
+    // UI helpers
+    getWalletDisplayInfo,
+    getCurrentWalletType,
+  };
 }
 
-export async function disconnectMetamask(): Promise<void> {
-  try {
-    if (window.ethereum) {
-      // Remove all event listeners
-      window.ethereum.removeAllListeners("accountsChanged");
-      window.ethereum.removeAllListeners("chainChanged");
-      window.ethereum.removeAllListeners("disconnect");
+/**
+ * Returns the active wallet from the store
+ * Convenience function for components that only need the wallet info
+ */
+export function getActiveWallet(): WalletInfo | null {
+  return useWeb3Store.getState().activeWallet;
+}
+
+/**
+ * Get an ethers provider for the connected wallet
+ * This method decides which provider to use based on the wallet type
+ */
+export function getEthersProvider(): ethers.BrowserProvider {
+  // Only works for EVM wallets
+  if (typeof window === "undefined") {
+    throw new Error("Browser environment required");
+  }
+
+  if (!window.ethereum) {
+    throw new Error("No EVM provider found");
+  }
+
+  if (!window.ethereum) {
+    throw new Error("No EVM provider found");
+  }
+  return new ethers.BrowserProvider(window.ethereum as ethers.Eip1193Provider);
+}
+
+/**
+ * Hook for managing chain switching functionality in the UI
+ * Uses Reown AppKit's network functions
+ */
+export function useChainSwitch() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Get the network switching function from Reown
+  const { switchNetwork } = useAppKitNetwork();
+  const { isConnected } = useAppKitAccount();
+
+  const activeWallet = useWeb3Store((state) => state.activeWallet);
+
+  /**
+   * Switch to a specific chain using Reown AppKit
+   * @param chain The chain to switch to
+   */
+  const switchToChain = async (chain: Chain): Promise<boolean> => {
+    setError(null);
+
+    // Check if wallet is connected
+    if (!isConnected || !activeWallet) {
+      const errorMsg = "No wallet connected. Please connect your wallet first.";
+      setError(errorMsg);
+      return false;
+    }
+
+    // Check wallet type compatibility with the chain
+    if (
+      activeWallet.type === WalletType.REOWN_SOL &&
+      !chain.mayanName.includes("solana")
+    ) {
+      const errorMsg = "Cannot switch a Solana wallet to an EVM chain.";
+      setError(errorMsg);
+      return false;
+    }
+
+    if (
+      activeWallet.type === WalletType.REOWN_EVM &&
+      chain.mayanName.includes("solana")
+    ) {
+      const errorMsg = "Cannot switch an EVM wallet to a Solana chain.";
+      setError(errorMsg);
+      return false;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Determine the correct namespace based on chain type
+      const namespace = chain.mayanName.includes("solana")
+        ? "solana"
+        : "eip155";
+
+      // Create properly typed CAIP network ID
+      const caipNetworkId = createCaipNetworkId(
+        namespace as "eip155" | "solana" | "bip122" | "polkadot",
+        chain.chainId,
+      );
+
+      // Create a proper Reown network definition using defineChain
+      const reownNetwork = defineChain({
+        id: chain.chainId,
+        caipNetworkId: caipNetworkId,
+        chainNamespace: namespace as
+          | "eip155"
+          | "solana"
+          | "bip122"
+          | "polkadot",
+        name: chain.name,
+        nativeCurrency: {
+          decimals: chain.decimals,
+          name: chain.currency,
+          symbol: chain.symbol,
+        },
+        rpcUrls: {
+          default: {
+            http: [chain.rpcUrl || ""],
+          },
+        },
+        blockExplorers: chain.explorerUrl
+          ? {
+              default: {
+                name: chain.name,
+                url: chain.explorerUrl,
+              },
+            }
+          : undefined,
+      });
+
+      // Switch network using Reown's function
+      await switchNetwork(reownNetwork);
 
       // Update the store
-      const store = useWeb3Store.getState();
-      store.removeWallet(WalletType.REOWN);
+      useWeb3Store
+        .getState()
+        .updateWalletChainId(activeWallet.type, chain.chainId);
+
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      const errorMsg = `Error switching chains: ${message}`;
+      setError(errorMsg);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error("Error disconnecting from MetaMask:", error);
-    throw error;
-  }
+  };
+
+  /**
+   * Switch to the source chain specified in the store
+   */
+  const switchToSourceChain = async (): Promise<boolean> => {
+    setError(null);
+
+    if (!isConnected || !activeWallet) {
+      const errorMsg = "No wallet connected. Please connect your wallet first.";
+      setError(errorMsg);
+      return false;
+    }
+
+    try {
+      setIsLoading(true);
+      const sourceChain = useWeb3Store.getState().sourceChain;
+
+      // Check wallet type compatibility with source chain
+      if (
+        activeWallet.type === WalletType.REOWN_SOL &&
+        !sourceChain.mayanName.includes("solana")
+      ) {
+        const errorMsg = "Cannot switch a Solana wallet to an EVM chain.";
+        setError(errorMsg);
+        return false;
+      }
+
+      if (
+        activeWallet.type === WalletType.REOWN_EVM &&
+        sourceChain.mayanName.includes("solana")
+      ) {
+        const errorMsg = "Cannot switch an EVM wallet to a Solana chain.";
+        setError(errorMsg);
+        return false;
+      }
+
+      return await switchToChain(sourceChain);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      const errorMsg = `Error switching to source chain: ${message}`;
+      setError(errorMsg);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return {
+    isLoading,
+    error,
+    switchToSourceChain,
+    switchToChain,
+  };
 }
 
 // used to display truncated wallet address
@@ -109,7 +506,7 @@ export const truncateAddress = (address: string) => {
 
 /**
  * Ensures the user's wallet is connected to the correct chain
- * Prompts the user to switch if necessary
+ * Uses Reown's network switching functionality
  *
  * @param targetChain The chain we want to ensure is selected in the wallet
  * @returns Promise resolving to true if the chain is correct, or false if there was an error
@@ -128,97 +525,64 @@ export async function ensureCorrectChain(targetChain: Chain): Promise<boolean> {
     return true;
   }
 
-  // We need to switch chains
-  console.log(
-    `Switching from chain ${activeWallet.chainId} to ${targetChain.chainId}`,
-  );
-
-  // Handle different wallet types
-  if (activeWallet.type === WalletType.REOWN) {
-    return switchMetamaskChain(targetChain);
+  // Check wallet type compatibility with target chain
+  if (
+    activeWallet.type === WalletType.REOWN_SOL &&
+    !targetChain.mayanName.includes("solana")
+  ) {
+    console.error("Cannot switch a Solana wallet to an EVM chain");
+    return false;
   }
 
-  // Add support for other wallet types here as needed
-
-  // Default fallback - we don't know how to switch this wallet type
-  console.error(
-    `Unsupported wallet type for chain switching: ${activeWallet.type}`,
-  );
-  return false;
-}
-
-/**
- * Prompts the user to switch chains in MetaMask
- *
- * @param targetChain The chain to switch to
- * @returns Promise resolving to true if successful, false otherwise
- */
-async function switchMetamaskChain(targetChain: Chain): Promise<boolean> {
-  if (!window.ethereum) {
-    console.error("MetaMask not installed");
+  if (
+    activeWallet.type === WalletType.REOWN_EVM &&
+    targetChain.mayanName.includes("solana")
+  ) {
+    console.error("Cannot switch an EVM wallet to a Solana chain");
     return false;
   }
 
   try {
-    const chainIdHex = `0x${targetChain.chainId.toString(16)}`;
+    // Create a proper Reown network definition
+    const chainNamespace = targetChain.mayanName.includes("solana")
+      ? "solana"
+      : "eip155";
+    const caipNetworkId = createCaipNetworkId(
+      chainNamespace as "eip155" | "solana" | "bip122" | "polkadot",
+      targetChain.chainId,
+    );
 
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: chainIdHex }],
-    });
-
-    return true;
-  } catch (error: unknown) {
-    // Type guard to check if error is an object with a code property
-    if (typeof error === "object" && error !== null && "code" in error) {
-      const ethError = error as { code: number };
-
-      // Error code 4902 means the chain isn't added to MetaMask yet
-      if (ethError.code === 4902) {
-        return addChainToMetamask(targetChain);
-      }
-    }
-
-    console.error("Error switching chain:", error);
-    return false;
-  }
-}
-
-/**
- * Adds a new chain to MetaMask if it doesn't exist
- *
- * @param chain The chain to add to MetaMask
- * @returns Promise resolving to true if successful, false otherwise
- */
-async function addChainToMetamask(chain: Chain): Promise<boolean> {
-  if (!window.ethereum) {
-    console.error("MetaMask not installed");
-    return false;
-  }
-
-  try {
-    // Format chain parameters for MetaMask
-    const params = {
-      chainId: `0x${chain.chainId.toString(16)}`,
-      chainName: chain.chainName,
+    defineChain({
+      id: targetChain.chainId,
+      caipNetworkId: caipNetworkId,
+      chainNamespace: chainNamespace as ChainNamespace,
+      name: targetChain.name,
       nativeCurrency: {
-        name: chain.currency,
-        symbol: chain.symbol,
-        decimals: chain.decimals,
+        decimals: targetChain.decimals,
+        name: targetChain.currency,
+        symbol: targetChain.symbol,
       },
-      rpcUrls: [chain.rpcUrl],
-      blockExplorerUrls: [chain.explorerUrl],
-    };
-
-    // Request to add the chain
-    await window.ethereum.request({
-      method: "wallet_addEthereumChain",
-      params: [params],
+      rpcUrls: {
+        default: {
+          http: [targetChain.rpcUrl || ""],
+        },
+      },
+      blockExplorers: targetChain.explorerUrl
+        ? {
+            default: {
+              name: targetChain.name,
+              url: targetChain.explorerUrl,
+            },
+          }
+        : undefined,
     });
+
+    // Update the store
+    store.updateWalletChainId(activeWallet.type, targetChain.chainId);
 
     return true;
   } catch (error) {
-    console.error("Error adding chain to MetaMask:", error);
+    console.error("Error switching chain:", error);
     return false;
   }
 }
@@ -232,140 +596,6 @@ async function addChainToMetamask(chain: Chain): Promise<boolean> {
 export async function ensureSourceChain(): Promise<boolean> {
   const store = useWeb3Store.getState();
   return ensureCorrectChain(store.sourceChain);
-}
-
-interface ChainSwitchState {
-  isLoading: boolean;
-  error: string | null;
-  /**
-   * Ensure the user's wallet is connected to the source chain
-   * @returns true if the wallet is connected to the source chain after the function call
-   */
-  switchToSourceChain: () => Promise<boolean>;
-  /**
-   * Ensure the user's wallet is connected to a specific chain
-   * @param chain The chain to connect to
-   * @returns true if the wallet is connected to the specified chain after the function call
-   */
-  switchToChain: (chain: Chain) => Promise<boolean>;
-}
-
-/**
- * Hook for managing chain switching functionality in the UI
- * Uses state for tracking loading/error status and handles chain switching logic
- */
-export function useChainSwitch(): ChainSwitchState {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
-
-  /**
-   * Switch to a specific chain
-   * @param chain The chain to switch to
-   */
-  const switchToChain = async (chain: Chain): Promise<boolean> => {
-    setError(null);
-
-    // Check if wallet is connected
-    if (!activeWallet) {
-      const errorMsg = "No wallet connected. Please connect your wallet first.";
-      setError(errorMsg);
-      return false;
-    }
-
-    try {
-      setIsLoading(true);
-
-      // Import dynamically to avoid server-side rendering issues
-      const { ensureCorrectChain } = await import("@/utils/walletMethods");
-      const success = await ensureCorrectChain(chain);
-
-      if (!success) {
-        const errorMsg = `Failed to switch to ${chain.name} network. Please try manually switching in your wallet.`;
-        setError(errorMsg);
-      }
-
-      return success;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      const errorMsg = `Error switching chains: ${message}`;
-      setError(errorMsg);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Switch to the source chain specified in the store
-   */
-  const switchToSourceChain = async (): Promise<boolean> => {
-    setError(null);
-
-    if (!activeWallet) {
-      const errorMsg = "No wallet connected. Please connect your wallet first.";
-      setError(errorMsg);
-      return false;
-    }
-
-    // Get current chain ID directly from MetaMask
-    if (window.ethereum) {
-      try {
-        const chainIdHex = await window.ethereum.request<string>({
-          method: "eth_chainId",
-        });
-        const currentChainId = parseInt(chainIdHex as string, 16);
-        const sourceChain = useWeb3Store.getState().sourceChain;
-
-        console.log("Hook - Current MetaMask chainId:", currentChainId);
-        console.log("Hook - Source chain ID:", sourceChain.chainId);
-
-        // If already on the correct chain, no need to switch
-        if (currentChainId === sourceChain.chainId) {
-          return true;
-        }
-
-        // Ensure store is synced with current MetaMask state
-        if (activeWallet.chainId !== currentChainId) {
-          useWeb3Store
-            .getState()
-            .updateWalletChainId(activeWallet.type, currentChainId);
-        }
-      } catch (err) {
-        console.error("Error checking MetaMask chain:", err);
-      }
-    }
-
-    try {
-      setIsLoading(true);
-      const success = await ensureSourceChain();
-
-      if (!success) {
-        const sourceChain = useWeb3Store.getState().sourceChain;
-        const errorMsg = `Failed to switch to ${sourceChain.name} network. Please try manually switching in your wallet.`;
-        setError(errorMsg);
-      }
-
-      return success;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      const errorMsg = `Error switching to source chain: ${message}`;
-      setError(errorMsg);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return {
-    isLoading,
-    error,
-    switchToSourceChain,
-    switchToChain,
-  };
 }
 
 interface TokenTransferOptions {
@@ -450,6 +680,8 @@ export function useTokenTransfer(
   const receiveAddress = useWeb3Store(
     (state) => state.transactionDetails.receiveAddress,
   );
+
+  const { getSigner } = useWalletProviderAndSigner();
 
   const latestRequestIdRef = useRef<number>(0);
 
@@ -815,8 +1047,19 @@ export function useTokenTransfer(
       setQuoteData(quotes);
 
       // Get provider and signer
-      const provider = getEthersProvider();
-      const signer = await provider.getSigner();
+      let signer;
+      try {
+        console.log("Getting signer from Reown...");
+        signer = await getSigner();
+        console.log("Successfully got signer");
+      } catch (signerError) {
+        console.error("Failed to get signer:", signerError);
+        toast.error("Failed to access wallet", {
+          id: toastId,
+          description: "Could not get a signer from your wallet",
+        });
+        return;
+      }
 
       // Execute the swap with permit
       const result = await executeEvmSwap({

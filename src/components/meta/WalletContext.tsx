@@ -4,7 +4,6 @@ import { createAppKit } from "@reown/appkit/react";
 import { BaseWalletAdapter, SolanaAdapter } from "@reown/appkit-adapter-solana";
 import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import { AppKitNetwork } from "@reown/appkit-common";
-
 import { solana } from "@reown/appkit/networks";
 import {
   mainnet,
@@ -13,8 +12,8 @@ import {
   base,
   optimism,
   polygon,
+  bsc,
 } from "@reown/appkit/networks";
-
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
 
 const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
@@ -25,6 +24,7 @@ const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   optimism,
   polygon,
   solana,
+  bsc,
 ];
 
 // 0. Create the Ethers adapter

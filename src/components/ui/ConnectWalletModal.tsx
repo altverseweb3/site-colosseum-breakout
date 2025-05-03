@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Wallet } from "lucide-react";
 import {
@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
 import { useAppKit } from "@reown/appkit/react";
+import { useWalletConnection } from "@/utils/walletMethods";
+import useWeb3Store from "@/store/web3Store";
 
 type WalletOption = {
   id: WalletType;
@@ -34,28 +36,42 @@ export const ConnectWalletModal = ({
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [connecting, setConnecting] = useState<WalletType | null>(null);
+
   const { open } = useAppKit();
+
+  const { isConnected } = useWalletConnection();
+  const activeWallet = useWeb3Store((state) => state.activeWallet);
+
+  // Close the modal and trigger onSuccess when wallet connects
+  useEffect(() => {
+    if (isConnected && activeWallet && modalOpen) {
+      setModalOpen(false);
+      toast.success(`Connected to ${activeWallet.name}`);
+      if (onSuccess) onSuccess();
+    }
+  }, [isConnected, activeWallet, modalOpen, onSuccess]);
 
   const walletOptions: WalletOption[] = [
     {
-      id: WalletType.REOWN,
+      id: WalletType.REOWN_EVM,
       name: "evm wallets",
       icons: ["/wallets/metamask.svg", "/wallets/walletconnect.svg"],
       disabled: false,
       background: "bg-[#E27625]/0",
       connectMethod: async () => {
-        open();
+        open({ view: "Connect", namespace: "eip155" });
         return null;
       },
     },
     {
-      id: WalletType.REOWN,
+      id: WalletType.REOWN_SOL,
       name: "solana wallets",
       icons: ["/wallets/phantom.svg"],
       disabled: false,
       background: "bg-[#E27625]/0",
       connectMethod: async () => {
-        open();
+        open({ view: "Connect", namespace: "solana" });
+        // Return null because the actual connection happens asynchronously
         return null;
       },
     },
@@ -79,19 +95,13 @@ export const ConnectWalletModal = ({
       setConnecting(wallet.id);
       console.log(`Connecting to ${wallet.name}...`);
 
-      const result = await wallet.connectMethod();
+      await wallet.connectMethod();
 
-      if (result) {
-        setModalOpen(false);
-        toast.success("Wallet connected successfully.");
-        if (onSuccess) onSuccess();
-      } else {
-        toast.error(`Failed to connect to ${wallet.name}.`);
-      }
+      // Note: We don't close the modal or show success here
+      // The useEffect will handle this when isConnected becomes true
     } catch (error) {
       console.error(`Error connecting to ${wallet.name}:`, error);
       toast.error(`Failed to connect to ${wallet.name}.`);
-    } finally {
       setConnecting(null);
     }
   };

@@ -6,21 +6,44 @@ import {
 } from "@mayanfinance/swap-sdk";
 import { Token, Chain } from "@/types/web3";
 import { ethers, Overrides, JsonRpcSigner } from "ethers";
+import { useAppKitProvider } from "@reown/appkit/react";
+import { getSafeProvider } from "./providerUtils";
 
 interface ReferrerAddresses {
   evm?: string;
   solana?: string;
 }
 
-/**
- * Approve token spending if needed
- * @returns A promise that resolves to true when the approval is successful
- */
+export function useWalletProviderAndSigner() {
+  const { walletProvider } = useAppKitProvider("eip155");
+
+  // Function to get a signer from the wallet provider
+  const getSigner = async () => {
+    if (!walletProvider) {
+      console.error("No wallet provider available from Reown");
+      throw new Error("No wallet provider available");
+    }
+
+    try {
+      const safeProvider = getSafeProvider(walletProvider);
+
+      // Create ethers provider and signer
+      const ethersProvider = new ethers.BrowserProvider(safeProvider);
+      return await ethersProvider.getSigner();
+    } catch (error) {
+      console.error("Error getting signer from wallet provider:", error);
+      throw error;
+    }
+  };
+
+  return { walletProvider, getSigner };
+}
+
 export async function approveTokenSpending(
   tokenAddress: string,
   amount: string,
   spenderAddress: string,
-  signer: JsonRpcSigner,
+  signer: ethers.JsonRpcSigner,
   tokenDecimals: number = 18,
 ): Promise<boolean> {
   try {

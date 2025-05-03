@@ -7,7 +7,8 @@ export interface WalletInfo {
 }
 
 export enum WalletType {
-  REOWN = "REOWN",
+  REOWN_EVM = "REOWN_EVM",
+  REOWN_SOL = "REOWN_SOL",
   SUI = "SUI",
 }
 
@@ -249,3 +250,45 @@ export interface TokenPriceResult {
   prices: TokenPrice[];
   error: string | null;
 }
+
+// you can thank our linting for this...
+type EthereumMethod =
+  | "eth_chainId"
+  | "eth_accounts"
+  | "eth_requestAccounts"
+  | "eth_sendTransaction"
+  | "eth_sign"
+  | "eth_signTransaction"
+  | "eth_signTypedData"
+  | "eth_signTypedData_v4"
+  | "wallet_switchEthereumChain"
+  | "wallet_addEthereumChain"
+  | "personal_sign"
+  | "net_version"
+  | "eth_getBalance"
+  | string;
+
+type EthereumParam =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<string | number | boolean | null | Record<string, unknown>>
+  | Record<string, unknown>;
+
+type EthereumResult =
+  | string
+  | string[]
+  | boolean
+  | number
+  | Record<string, unknown>
+  | null;
+
+export interface Eip1193Provider {
+  request(args: {
+    method: EthereumMethod;
+    params?: EthereumParam[];
+  }): Promise<EthereumResult>;
+}
+
+export type ChainNamespace = "eip155" | "solana" | "polkadot" | "bip122";
