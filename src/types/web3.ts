@@ -7,7 +7,8 @@ export interface WalletInfo {
 }
 
 export enum WalletType {
-  REOWN = "REOWN",
+  EVM = "EVM",
+  SOLANA = "SOLANA",
   SUI = "SUI",
 }
 

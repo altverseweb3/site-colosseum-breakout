@@ -1,7 +1,7 @@
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import TokenInitializer from "@/components/meta/TokensInitializer";
-import { AppKit } from "@/components/meta/WalletContext";
+import { CombinedWalletProvider } from "@/components/meta/WalletContext";
 
 export default async function DAppLayout({
   children,
@@ -9,7 +9,7 @@ export default async function DAppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AppKit>
+    <CombinedWalletProvider>
       <div className="flex flex-col h-dvh">
         <TokenInitializer />
         <SiteHeader />
@@ -18,6 +18,6 @@ export default async function DAppLayout({
         </main>
         <SiteFooter />
       </div>
-    </AppKit>
+    </CombinedWalletProvider>
   );
 }
