@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import { Wallet } from "lucide-react";
 import {
@@ -15,6 +15,54 @@ import { toast } from "sonner";
 import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
 import { useAppKit } from "@reown/appkit/react";
+import { ConnectButton } from "@suiet/wallet-kit";
+
+// Custom wrapper for Suiet wallet
+const CustomSuiConnectButton = ({ className }: { className?: string }) => {
+  const buttonRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div className="relative">
+      {/* Hidden Suiet button */}
+      <div
+        ref={buttonRef}
+        className="absolute opacity-0 pointer-events-auto inset-0 z-10"
+        style={{ height: "1px", width: "1px", overflow: "hidden" }}
+      >
+        <ConnectButton />
+      </div>
+
+      {/* Visible custom button */}
+      <Button
+        variant="outline"
+        className={cn(
+          "w-full flex items-center justify-between px-3 py-6 rounded-md bg-[#18181B] border border-[#27272A] transition-colors text-[#FAFAFA] hover:bg-[#27272A]",
+          className,
+        )}
+        onClick={() => {
+          // Find and click the hidden Suiet button
+          const suietButton = buttonRef.current?.querySelector("button");
+          if (suietButton) {
+            suietButton.click();
+          }
+        }}
+      >
+        <div className="flex items-center">
+          <span className="font-medium">sui wallets</span>
+        </div>
+        <div className="flex items-center">
+          <Image
+            src="/wallets/sui.svg"
+            alt="sui wallet icon"
+            width={24}
+            height={24}
+            className="object-contain mx-1"
+          />
+        </div>
+      </Button>
+    </div>
+  );
+};
 
 type WalletOption = {
   id: WalletType;
@@ -34,38 +82,30 @@ export const ConnectWalletModal = ({
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [connecting, setConnecting] = useState<WalletType | null>(null);
-  const { open } = useAppKit();
+  const { open: openAppKit } = useAppKit();
 
   const walletOptions: WalletOption[] = [
     {
-      id: WalletType.REOWN,
+      id: WalletType.EVM,
       name: "evm wallets",
       icons: ["/wallets/metamask.svg", "/wallets/walletconnect.svg"],
       disabled: false,
       background: "bg-[#E27625]/0",
       connectMethod: async () => {
-        open();
+        openAppKit();
         return null;
       },
     },
     {
-      id: WalletType.REOWN,
+      id: WalletType.SOLANA,
       name: "solana wallets",
       icons: ["/wallets/phantom.svg"],
       disabled: false,
       background: "bg-[#E27625]/0",
       connectMethod: async () => {
-        open();
+        openAppKit();
         return null;
       },
-    },
-    {
-      id: WalletType.SUI,
-      name: "sui",
-      icons: ["/wallets/sui.svg"],
-      disabled: false,
-      background: "bg-[#4DA2FF]/0",
-      connectMethod: async () => null,
     },
   ];
 
@@ -117,7 +157,7 @@ export const ConnectWalletModal = ({
         <DialogHeader>
           <DialogTitle className="text-[#FAFAFA]">select wallet</DialogTitle>
         </DialogHeader>
-        <div className="mt-4 space-y-3">
+        <div className="flex flex-col gap-3">
           {walletOptions.map((wallet) => (
             <Button
               key={wallet.id}
@@ -160,6 +200,7 @@ export const ConnectWalletModal = ({
               </div>
             </Button>
           ))}
+          <CustomSuiConnectButton />
         </div>
       </DialogContent>
     </Dialog>
