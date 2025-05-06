@@ -16,6 +16,11 @@ import {
 } from "@reown/appkit/networks";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
 
+// --- Suiet Imports ---
+import { WalletProvider } from "@suiet/wallet-kit";
+import "@suiet/wallet-kit/style.css"; // Import Suiet CSS
+
+// --- Reown AppKit Configuration ---
 const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   mainnet,
   arbitrum,
@@ -73,8 +78,21 @@ createAppKit({
   enableWalletConnect: false,
 });
 
-import { ReactNode } from "react";
-
-export function AppKit({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+// --- Combined Provider Component ---
+// This new component will wrap children with the necessary providers
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function CombinedWalletProvider({ children }: { children: any }) {
+  // The createAppKit call above handles Reown setup.
+  // We now wrap children with the Suiet WalletProvider.
+  // Reown's context seems to be managed internally after createAppKit runs,
+  // so we don't need an explicit Reown provider component here.
+  return (
+    <WalletProvider>
+      {/*
+        Reown AppKit's context is implicitly available to hooks like useAppKit
+        because createAppKit was called in this module's scope.
+      */}
+      {children}
+    </WalletProvider>
+  );
 }

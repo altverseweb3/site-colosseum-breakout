@@ -324,10 +324,10 @@ export function useWalletConnection() {
         }
 
         // Handle SUI wallet case
-        if (walletType === WalletType.SUI) {
+        if (walletType === WalletType.SUIET_SUI) {
           // When SUI is implemented, pass the proper namespace
           // await disconnect({ namespace: "sui" });
-          store.removeWallet(WalletType.SUI);
+          store.removeWallet(WalletType.SUIET_SUI);
           console.log("SUI wallet disconnected");
         }
 
