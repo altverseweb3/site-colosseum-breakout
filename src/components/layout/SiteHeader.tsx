@@ -159,26 +159,17 @@ export function SiteHeader() {
           </Sheet>
 
           {/* Desktop Wallet Button */}
-          {activeWallet ? (
-            <BrandedButton
-              className="hidden md:inline-flex whitespace-nowrap text-sm h-[30px]"
-              iconClassName="h-4 w-4"
-              onClick={handleDisconnect}
-              iconName="Wallet"
-              buttonText={getWalletButtonText()}
-            />
-          ) : (
-            <ConnectWalletModal
-              trigger={
-                <BrandedButton
-                  className="hidden md:inline-flex whitespace-nowrap text-sm h-[30px]"
-                  iconClassName="h-4 w-4"
-                  iconName="Wallet"
-                  buttonText="connect wallet"
-                />
-              }
-            />
-          )}
+
+          <ConnectWalletModal
+            trigger={
+              <BrandedButton
+                className="hidden md:inline-flex whitespace-nowrap text-sm h-[30px]"
+                iconClassName="h-4 w-4"
+                iconName="Wallet"
+                buttonText={getWalletButtonText()}
+              />
+            }
+          />
         </div>
       </div>
     </header>

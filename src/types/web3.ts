@@ -1,3 +1,7 @@
+// types/web3.ts
+
+import { Transaction, VersionedTransaction } from "@solana/web3.js";
+
 export interface WalletInfo {
   type: WalletType; // Static Enum to type/identify the wallet
   name: string; // human-readable name of the wallet e.g. "MetaMask"
@@ -129,6 +133,10 @@ export interface Web3StoreState {
   ) => void;
   updateTokenPrices: (priceResults: TokenPriceResult[]) => void;
   setTokensLoading: (loading: boolean) => void;
+
+  getWalletsOfType: (walletType: WalletType) => WalletInfo[];
+  isWalletTypeConnected: (walletType: WalletType) => boolean;
+  getWalletByType: (walletType: WalletType) => WalletInfo | null;
 }
 
 export enum Network {
@@ -218,6 +226,7 @@ export enum Network {
   DEGEN_MAINNET = "degen-mainnet",
   INK_MAINNET = "ink-mainnet",
   INK_SEPOLIA = "ink-sepolia",
+  SOLANA_MAINNET = "solana-mainnet",
 }
 
 export interface TokenBalance {
@@ -292,3 +301,14 @@ export interface Eip1193Provider {
 }
 
 export type ChainNamespace = "eip155" | "solana" | "polkadot" | "bip122";
+
+export interface SolanaSigner {
+  publicKey: string;
+  signTransaction: (
+    transaction: Transaction | VersionedTransaction,
+  ) => Promise<Transaction | VersionedTransaction>;
+  signAllTransactions?: (
+    transactions: (Transaction | VersionedTransaction)[],
+  ) => Promise<(Transaction | VersionedTransaction)[]>;
+  signMessage?: (message: Uint8Array) => Promise<{ signature: Uint8Array }>;
+}

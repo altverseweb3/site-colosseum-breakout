@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
 import { useAppKit } from "@reown/appkit/react";
-import { useWalletConnection } from "@/utils/walletMethods";
 import useWeb3Store from "@/store/web3Store";
 
 type WalletOption = {
@@ -39,17 +38,16 @@ export const ConnectWalletModal = ({
 
   const { open } = useAppKit();
 
-  const { isConnected } = useWalletConnection();
   const activeWallet = useWeb3Store((state) => state.activeWallet);
 
   // Close the modal and trigger onSuccess when wallet connects
   useEffect(() => {
-    if (isConnected && activeWallet && modalOpen) {
+    if (activeWallet && modalOpen) {
       setModalOpen(false);
       toast.success(`Connected to ${activeWallet.name}`);
       if (onSuccess) onSuccess();
     }
-  }, [isConnected, activeWallet, modalOpen, onSuccess]);
+  }, [activeWallet, modalOpen, onSuccess]);
 
   const walletOptions: WalletOption[] = [
     {

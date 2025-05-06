@@ -1,3 +1,5 @@
+// store/web3Store.ts
+
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
@@ -116,24 +118,35 @@ const useWeb3Store = create<Web3StoreState>()(
       },
 
       removeWallet: (walletType: WalletType) => {
-        set((state) => ({
-          connectedWallets: state.connectedWallets.filter(
+        set((state) => {
+          const updatedWallets = state.connectedWallets.filter(
             (w) => w.type !== walletType,
-          ),
-          activeWallet:
-            state.activeWallet?.type === walletType
-              ? state.connectedWallets.find((w) => w.type !== walletType) ||
-                null
-              : state.activeWallet,
-        }));
+          );
+
+          // Determine new active wallet if the removed one was active
+          let newActiveWallet = state.activeWallet;
+          if (state.activeWallet?.type === walletType) {
+            newActiveWallet =
+              updatedWallets.length > 0 ? updatedWallets[0] : null;
+          }
+
+          return {
+            connectedWallets: updatedWallets,
+            activeWallet: newActiveWallet,
+          };
+        });
       },
 
       setActiveWallet: (walletType: WalletType) => {
-        set((state) => ({
-          activeWallet:
-            state.connectedWallets.find((w) => w.type === walletType) ||
-            state.activeWallet,
-        }));
+        set((state) => {
+          // Find the wallet with the specified type
+          const targetWallet = state.connectedWallets.find(
+            (w) => w.type === walletType,
+          );
+
+          // Only update if we found the target wallet
+          return targetWallet ? { activeWallet: targetWallet } : state;
+        });
       },
 
       updateWalletAddress: (walletType: WalletType, address: string) => {
@@ -167,14 +180,52 @@ const useWeb3Store = create<Web3StoreState>()(
         });
       },
 
+      // New method to get all wallets of a specific type
+      getWalletsOfType: (walletType: WalletType): WalletInfo[] => {
+        return get().connectedWallets.filter((w) => w.type === walletType);
+      },
+
+      // New method to check if a specific wallet type is connected
+      isWalletTypeConnected: (walletType: WalletType): boolean => {
+        return get().connectedWallets.some((w) => w.type === walletType);
+      },
+
+      // New method to get a connected wallet by type
+      getWalletByType: (walletType: WalletType): WalletInfo | null => {
+        return (
+          get().connectedWallets.find((w) => w.type === walletType) || null
+        );
+      },
+
       // Chain selection actions
       setSourceChain: (chain: Chain) => {
-        set((state) => ({
-          sourceChain: chain,
-          destinationChain: state.destinationChain,
-          // Reset source token when changing chains
-          sourceToken: null,
-        }));
+        set((state) => {
+          // Check if the chain requires a different wallet type
+          const isSolanaChain = chain.mayanName.includes("solana");
+          const neededWalletType = isSolanaChain
+            ? WalletType.REOWN_SOL
+            : WalletType.REOWN_EVM;
+
+          // Find a wallet of the needed type if available
+          const compatibleWallet = state.connectedWallets.find(
+            (w) => w.type === neededWalletType,
+          );
+
+          // Update active wallet if needed and available
+          const newActiveWallet =
+            compatibleWallet && state.activeWallet?.type !== neededWalletType
+              ? compatibleWallet
+              : state.activeWallet;
+
+          return {
+            sourceChain: chain,
+            destinationChain: state.destinationChain,
+            // Reset source token when changing chains
+            sourceToken: null,
+            // Update active wallet if needed
+            activeWallet: newActiveWallet,
+          };
+        });
       },
 
       setDestinationChain: (chain: Chain) => {
@@ -202,11 +253,31 @@ const useWeb3Store = create<Web3StoreState>()(
               }
             : null;
 
+          // Check if the new source chain requires a different wallet type
+          const newSourceChain = state.destinationChain;
+          const isSolanaChain = newSourceChain.mayanName.includes("solana");
+          const neededWalletType = isSolanaChain
+            ? WalletType.REOWN_SOL
+            : WalletType.REOWN_EVM;
+
+          // Find a wallet of the needed type if available
+          const compatibleWallet = state.connectedWallets.find(
+            (w) => w.type === neededWalletType,
+          );
+
+          // Update active wallet if needed and available
+          const newActiveWallet =
+            compatibleWallet && state.activeWallet?.type !== neededWalletType
+              ? compatibleWallet
+              : state.activeWallet;
+
           return {
             sourceChain: state.destinationChain,
             destinationChain: state.sourceChain,
             sourceToken: newSourceToken,
             destinationToken: newDestinationToken,
+            // Update active wallet if needed
+            activeWallet: newActiveWallet,
           };
         });
       },
@@ -243,7 +314,6 @@ const useWeb3Store = create<Web3StoreState>()(
       },
 
       setDestinationToken: (token: Token | null) => {
-        // debugger;
         console.log("Setting destination token:", token ? token.name : "null");
         set({ destinationToken: token });
         // Update token collections to set destination token to have alwaysLoadPrice to true
@@ -716,6 +786,21 @@ export const useSourceChain = (): Chain => {
 
 export const useDestinationChain = (): Chain => {
   return useWeb3Store((state) => state.destinationChain);
+};
+
+// Get wallet by type hook
+export const useWalletByType = (walletType: WalletType): WalletInfo | null => {
+  return useWeb3Store((state) => state.getWalletByType(walletType));
+};
+
+// Check if a wallet type is connected
+export const useIsWalletTypeConnected = (walletType: WalletType): boolean => {
+  return useWeb3Store((state) => state.isWalletTypeConnected(walletType));
+};
+
+// Get all wallets of a specific type
+export const useWalletsOfType = (walletType: WalletType): WalletInfo[] => {
+  return useWeb3Store((state) => state.getWalletsOfType(walletType));
 };
 
 // New hooks for the selected tokens

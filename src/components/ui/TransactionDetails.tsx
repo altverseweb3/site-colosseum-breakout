@@ -84,7 +84,15 @@ export function TransactionDetails({
    * otherwise revert to wallet address.
    */
   const saveReceiveAddress = useCallback(() => {
-    if (/^0x[a-fA-F0-9]{40}$/.test(receiveAddressInput)) {
+    // Check for Ethereum address (starts with 0x followed by 40 hex chars)
+    const isEthereumAddress = /^0x[a-fA-F0-9]{40}$/.test(receiveAddressInput);
+
+    // Check for Solana address (Base58 encoded, typically 32-44 chars)
+    const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
+      receiveAddressInput,
+    );
+
+    if (isEthereumAddress || isSolanaAddress) {
       setReceiveAddress(receiveAddressInput);
     } else if (!receiveAddressInput && activeWallet) {
       setReceiveAddressInput(activeWallet.address);
