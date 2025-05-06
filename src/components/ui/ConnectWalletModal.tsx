@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { Wallet } from "lucide-react";
 import {
@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
 import { useAppKit } from "@reown/appkit/react";
+import { useWalletConnection } from "@/utils/walletMethods";
 import useWeb3Store from "@/store/web3Store";
 
 type WalletOption = {
@@ -35,19 +36,71 @@ export const ConnectWalletModal = ({
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [connecting, setConnecting] = useState<WalletType | null>(null);
+  const [hoveredWallet, setHoveredWallet] = useState<WalletType | null>(null);
+
+  // Use refs to track wallet state and whether a connection is in progress
+  // Using Partial to allow for empty or incomplete records
+  const previousWalletsRef = useRef<Partial<Record<WalletType, string>>>({});
+  const isNewConnectionRef = useRef<boolean>(false);
 
   const { open } = useAppKit();
+  const { disconnectWallet, isWalletTypeConnected } = useWalletConnection();
 
   const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const connectedWallets = useWeb3Store((state) => state.connectedWallets);
 
-  // Close the modal and trigger onSuccess when wallet connects
+  // When modal opens, capture the current state of wallets
   useEffect(() => {
-    if (activeWallet && modalOpen) {
+    if (modalOpen) {
+      // Reset the new connection flag
+      isNewConnectionRef.current = false;
+
+      // Store current wallet addresses by type
+      const currentWallets: Partial<Record<WalletType, string>> = {};
+      connectedWallets.forEach((wallet) => {
+        currentWallets[wallet.type] = wallet.address;
+      });
+
+      previousWalletsRef.current = currentWallets;
+    }
+  }, [modalOpen, connectedWallets]);
+
+  // Check for new wallet connections
+  useEffect(() => {
+    if (!modalOpen || !activeWallet) return;
+
+    // Check if this wallet was newly connected
+    const previousAddress = previousWalletsRef.current[activeWallet.type];
+    const isNewWallet =
+      !previousAddress || previousAddress !== activeWallet.address;
+
+    // Only react if this is a newly connected wallet AND the connection was initiated
+    // within this component (not from elsewhere)
+    if (isNewWallet && isNewConnectionRef.current) {
+      // Update our record of connected wallets
+      previousWalletsRef.current[activeWallet.type] = activeWallet.address;
+
+      // Show success and close modal
       setModalOpen(false);
       toast.success(`Connected to ${activeWallet.name}`);
       if (onSuccess) onSuccess();
+
+      // Reset the connection flag
+      isNewConnectionRef.current = false;
     }
   }, [activeWallet, modalOpen, onSuccess]);
+
+  // Special handler for Dialog onOpenChange
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && connecting) {
+        // Reset connecting state when modal is closed while connecting
+        setConnecting(null);
+      }
+      setModalOpen(open);
+    },
+    [connecting],
+  );
 
   const walletOptions: WalletOption[] = [
     {
@@ -69,7 +122,6 @@ export const ConnectWalletModal = ({
       background: "bg-[#E27625]/0",
       connectMethod: async () => {
         open({ view: "Connect", namespace: "solana" });
-        // Return null because the actual connection happens asynchronously
         return null;
       },
     },
@@ -89,23 +141,60 @@ export const ConnectWalletModal = ({
       return;
     }
 
-    try {
-      setConnecting(wallet.id);
-      console.log(`Connecting to ${wallet.name}...`);
+    // Check if wallet is already connected
+    const isConnected = isWalletTypeConnected(wallet.id);
 
-      await wallet.connectMethod();
+    if (isConnected) {
+      // If already connected, disconnect it
+      try {
+        setConnecting(wallet.id);
+        console.log(`Disconnecting from ${wallet.name}...`);
 
-      // Note: We don't close the modal or show success here
-      // The useEffect will handle this when isConnected becomes true
-    } catch (error) {
-      console.error(`Error connecting to ${wallet.name}:`, error);
-      toast.error(`Failed to connect to ${wallet.name}.`);
-      setConnecting(null);
+        await disconnectWallet(wallet.id);
+        toast.success(`Disconnected from ${wallet.name}`);
+
+        // Update our ref of connected wallets
+        const updatedWallets = { ...previousWalletsRef.current };
+        delete updatedWallets[wallet.id];
+        previousWalletsRef.current = updatedWallets;
+
+        // Reset connecting state
+        setConnecting(null);
+      } catch (error) {
+        console.error(`Error disconnecting from ${wallet.name}:`, error);
+        toast.error(`Failed to disconnect from ${wallet.name}`);
+        setConnecting(null);
+      }
+    } else {
+      // If not connected, connect to it
+      try {
+        setConnecting(wallet.id);
+        console.log(`Connecting to ${wallet.name}...`);
+
+        // Set flag to indicate we're initiating a new connection
+        isNewConnectionRef.current = true;
+
+        await wallet.connectMethod();
+
+        // Add a timeout to reset the connecting state if it gets stuck
+        setTimeout(() => {
+          if (connecting === wallet.id) {
+            setConnecting(null);
+            // If we're still connecting after timeout, reset the new connection flag
+            isNewConnectionRef.current = false;
+          }
+        }, 5000);
+      } catch (error) {
+        console.error(`Error connecting to ${wallet.name}:`, error);
+        toast.error(`Failed to connect to ${wallet.name}.`);
+        setConnecting(null);
+        isNewConnectionRef.current = false;
+      }
     }
   };
 
   return (
-    <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+    <Dialog open={modalOpen} onOpenChange={handleOpenChange}>
       {trigger ? (
         <DialogTrigger asChild>{trigger}</DialogTrigger>
       ) : (
@@ -126,48 +215,65 @@ export const ConnectWalletModal = ({
           <DialogTitle className="text-[#FAFAFA]">select wallet</DialogTitle>
         </DialogHeader>
         <div className="mt-4 space-y-3">
-          {walletOptions.map((wallet) => (
-            <Button
-              key={wallet.id}
-              variant="outline"
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-6 rounded-md bg-[#18181B] border border-[#27272A] transition-colors",
-                wallet.disabled
-                  ? "text-[#52525b]"
-                  : "text-[#FAFAFA] hover:bg-[#27272A]",
-              )}
-              onClick={() => handleWalletSelect(wallet)}
-              disabled={wallet.disabled || connecting !== null}
-            >
-              <div className="flex items-center">
-                <span className="font-medium">{wallet.name}</span>
-                {connecting === wallet.id && (
-                  <span className="ml-3 text-xs text-amber-500">
-                    connecting...
-                  </span>
-                )}
-              </div>
+          {walletOptions.map((wallet) => {
+            const isConnected = isWalletTypeConnected(wallet.id);
+            const isHovered = hoveredWallet === wallet.id;
+            const isCurrentlyConnecting = connecting === wallet.id;
 
-              <div
-                className={`h-8 w-auto relative flex items-center justify-center rounded-md ${
-                  wallet.background
-                }`}
+            return (
+              <Button
+                key={wallet.id}
+                variant="outline"
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-6 rounded-md bg-[#18181B] border border-[#27272A] transition-colors",
+                  wallet.disabled
+                    ? "text-[#52525b]"
+                    : isConnected
+                      ? "text-[#FAFAFA] hover:bg-[#27272A] border-amber-600"
+                      : "text-[#FAFAFA] hover:bg-[#27272A]",
+                )}
+                onClick={() => handleWalletSelect(wallet)}
+                disabled={
+                  wallet.disabled ||
+                  (connecting !== null && connecting !== wallet.id)
+                }
+                onMouseEnter={() => setHoveredWallet(wallet.id)}
+                onMouseLeave={() => setHoveredWallet(null)}
               >
                 <div className="flex items-center">
-                  {wallet.icons.map((icon, index) => (
-                    <Image
-                      key={index}
-                      src={icon}
-                      alt={`${wallet.name} icon ${index + 1}`}
-                      width={24}
-                      height={24}
-                      className="object-contain mx-1"
-                    />
-                  ))}
+                  <span className="font-medium">{wallet.name}</span>
+                  {isCurrentlyConnecting ? (
+                    <span className="ml-3 text-xs text-amber-500">
+                      {isConnected ? "disconnecting..." : "connecting..."}
+                    </span>
+                  ) : isConnected ? (
+                    <span className="ml-3 text-xs text-amber-500">
+                      {isHovered ? "disconnect" : "connected"}
+                    </span>
+                  ) : null}
                 </div>
-              </div>
-            </Button>
-          ))}
+
+                <div
+                  className={`h-8 w-auto relative flex items-center justify-center rounded-md ${
+                    wallet.background
+                  }`}
+                >
+                  <div className="flex items-center">
+                    {wallet.icons.map((icon, index) => (
+                      <Image
+                        key={index}
+                        src={icon}
+                        alt={`${wallet.name} icon ${index + 1}`}
+                        width={24}
+                        height={24}
+                        className="object-contain mx-1"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </Button>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>

@@ -110,9 +110,11 @@ const useWeb3Store = create<Web3StoreState>()(
             newWallets = [...state.connectedWallets, walletForStorage];
           }
 
+          // IMPORTANT: Always set the newly connected wallet as active
+          // This ensures the most recently connected wallet becomes the active one
           return {
             connectedWallets: newWallets,
-            activeWallet: state.activeWallet || walletForStorage,
+            activeWallet: walletForStorage,
           };
         });
       },

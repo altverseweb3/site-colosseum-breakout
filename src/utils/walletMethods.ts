@@ -55,10 +55,6 @@ export function useWalletConnection() {
   const evmNetwork = useAppKitNetwork();
   const solanaNetwork = useAppKitNetwork();
 
-  // Get the disconnect functions for each namespace
-  const { disconnect: disconnectEvm } = useDisconnect();
-  const { disconnect: disconnectSolana } = useDisconnect();
-
   // Track connection status in local state
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,11 +113,9 @@ export function useWalletConnection() {
       const store = useWeb3Store.getState();
       store.addWallet(walletInfo);
 
-      // Only set active if we don't already have an active wallet
-      // or if the active wallet is of the same type
-      if (!store.activeWallet || store.activeWallet.type === walletType) {
-        store.setActiveWallet(walletType);
-      }
+      // IMPORTANT: Always set the new wallet as active
+      // This ensures most recently connected wallet becomes active
+      store.setActiveWallet(walletType);
 
       console.log(
         `${walletType} wallet connected and synced with store:`,
@@ -279,25 +273,62 @@ export function useWalletConnection() {
    * Disconnect the specified wallet type
    * @param walletType The type of wallet to disconnect, defaults to both
    */
+  // Use a single disconnect function with proper namespace parameter
+  const { disconnect } = useDisconnect();
+
+  /**
+   * Disconnect the specified wallet type
+   * @param walletType The type of wallet to disconnect, defaults to all wallets if not specified
+   */
   const disconnectWallet = useCallback(
     async (walletType?: WalletType) => {
       try {
         const store = useWeb3Store.getState();
 
-        if (!walletType || walletType === WalletType.REOWN_EVM) {
+        // If no specific wallet type is provided, disconnect all wallets
+        if (walletType === undefined) {
+          console.log("Disconnecting ALL wallets");
+
+          // Disconnect EVM wallet if connected
           if (evmAccount.isConnected) {
-            await disconnectEvm();
-            store.removeWallet(WalletType.REOWN_EVM);
+            await disconnect({ namespace: "eip155" });
             console.log("EVM wallet disconnected");
           }
-        }
 
-        if (!walletType || walletType === WalletType.REOWN_SOL) {
+          // Disconnect Solana wallet if connected
           if (solanaAccount.isConnected) {
-            await disconnectSolana();
-            store.removeWallet(WalletType.REOWN_SOL);
+            await disconnect({ namespace: "solana" });
             console.log("Solana wallet disconnected");
           }
+
+          // Clear all wallets from store
+          store.disconnectAll();
+          return true;
+        }
+
+        // Disconnect a specific wallet type
+        console.log(`Disconnecting specific wallet type: ${walletType}`);
+
+        if (walletType === WalletType.REOWN_EVM && evmAccount.isConnected) {
+          // Pass the namespace "eip155" for EVM wallets
+          await disconnect({ namespace: "eip155" });
+          store.removeWallet(WalletType.REOWN_EVM);
+          console.log("EVM wallet disconnected");
+        }
+
+        if (walletType === WalletType.REOWN_SOL && solanaAccount.isConnected) {
+          // Pass the namespace "solana" for Solana wallets
+          await disconnect({ namespace: "solana" });
+          store.removeWallet(WalletType.REOWN_SOL);
+          console.log("Solana wallet disconnected");
+        }
+
+        // Handle SUI wallet case
+        if (walletType === WalletType.SUI) {
+          // When SUI is implemented, pass the proper namespace
+          // await disconnect({ namespace: "sui" });
+          store.removeWallet(WalletType.SUI);
+          console.log("SUI wallet disconnected");
         }
 
         // Update active wallet if needed
@@ -305,20 +336,20 @@ export function useWalletConnection() {
           // Find another connected wallet to set as active
           const remainingWallets = store.connectedWallets;
           if (remainingWallets.length > 0) {
+            console.log(
+              `Switching active wallet to ${remainingWallets[0].type}`,
+            );
             store.setActiveWallet(remainingWallets[0].type);
           }
         }
+
+        return true;
       } catch (error) {
         console.error("Error disconnecting wallet:", error);
         throw error;
       }
     },
-    [
-      disconnectEvm,
-      disconnectSolana,
-      evmAccount.isConnected,
-      solanaAccount.isConnected,
-    ],
+    [disconnect, evmAccount.isConnected, solanaAccount.isConnected],
   );
 
   /**
