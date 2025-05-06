@@ -54,7 +54,12 @@ createAppKit({
   projectId,
   features: {
     analytics: true,
+    swaps: false,
+    email: false,
+    socials: false,
   },
+  allWallets: "HIDE",
+  enableWalletGuide: false,
   themeVariables: {
     "--w3m-color-mix": "#000000",
     "--w3m-color-mix-strength": 30,
@@ -62,6 +67,10 @@ createAppKit({
     "--w3m-font-family": "Urbanist",
     "--w3m-border-radius-master": "8px",
   },
+  featuredWalletIds: [
+    "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96",
+  ],
+  enableWalletConnect: false,
 });
 
 import { ReactNode } from "react";
