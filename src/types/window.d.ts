@@ -34,15 +34,6 @@ interface PartialEthereumProvider {
   [key: string]: unknown;
 }
 
-// Define Solana RPC methods (commonly used in Phantom wallet)
-type SolanaRpcMethod =
-  | "connect"
-  | "disconnect"
-  | "signTransaction"
-  | "signAllTransactions"
-  | "signMessage"
-  | "signAndSendTransaction";
-
 // Define Solana provider interface for wallets like Phantom
 interface PartialSolanaProvider {
   isPhantom?: boolean;

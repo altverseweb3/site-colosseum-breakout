@@ -84,7 +84,7 @@ createAppKit({
 // SuiWalletSync component to handle Sui wallet state synchronization
 const SuiWalletSync = () => {
   const { connected, address, name, disconnect } = useWallet();
-  
+
   useEffect(() => {
     // Sync Sui wallet connection state with our store
     if (connected && address) {
@@ -104,16 +104,16 @@ const SuiWalletSync = () => {
     const checkDisconnectState = () => {
       const store = useWeb3Store.getState();
       const suiWalletInStore = store.connectedWallets.some(
-        wallet => wallet.type === WalletType.SUIET_SUI
+        (wallet) => wallet.type === WalletType.SUIET_SUI,
       );
-      
+
       // If Sui wallet is connected in provider but not in our store, disconnect it
       if (connected && !suiWalletInStore) {
         disconnect();
         console.log("Sui wallet disconnected due to store state mismatch");
       }
     };
-    
+
     // Check on mount and when connected state changes
     checkDisconnectState();
   }, [connected, disconnect]);

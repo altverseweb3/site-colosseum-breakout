@@ -31,7 +31,9 @@ type WalletOption = {
 const CustomSuiConnectButton = ({ className }: { className?: string }) => {
   const buttonRef = useRef<HTMLDivElement>(null);
   const { connected, disconnect } = useWallet(); // Access Sui wallet state directly
-  const isConnected = useWeb3Store((state) => state.isWalletTypeConnected(WalletType.SUIET_SUI));
+  const isConnected = useWeb3Store((state) =>
+    state.isWalletTypeConnected(WalletType.SUIET_SUI),
+  );
 
   const handleCustomClick = () => {
     if (connected) {
@@ -44,13 +46,15 @@ const CustomSuiConnectButton = ({ className }: { className?: string }) => {
         console.error("Button ref is null or undefined.");
         return;
       }
-      
+
       const suietButton = buttonRef.current.querySelector("button");
       if (!suietButton) {
-        console.error("Could not find the button element inside the hidden div.");
+        console.error(
+          "Could not find the button element inside the hidden div.",
+        );
         return;
       }
-      
+
       suietButton.click();
     }
   };
@@ -80,8 +84,10 @@ const CustomSuiConnectButton = ({ className }: { className?: string }) => {
           <span className="font-medium">sui wallets</span>
           {isConnected && (
             <span className="ml-3 text-xs text-amber-500">
-              {buttonRef.current?.querySelector("button")?.classList.contains("wkit-disconnecting-button") 
-                ? "disconnecting..." 
+              {buttonRef.current
+                ?.querySelector("button")
+                ?.classList.contains("wkit-disconnecting-button")
+                ? "disconnecting..."
                 : "connected"}
             </span>
           )}

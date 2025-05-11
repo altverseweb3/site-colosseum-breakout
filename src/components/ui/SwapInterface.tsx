@@ -11,7 +11,7 @@ import useWeb3Store from "@/store/web3Store";
 import { toast } from "sonner";
 import { AvailableIconName } from "@/types/ui";
 import { WalletType } from "@/types/web3";
-import { useWallet } from "@suiet/wallet-kit"; // Import Sui wallet hook
+import { useWallet } from "@suiet/wallet-kit";
 
 interface SwapInterfaceProps {
   children: ReactNode;
@@ -25,12 +25,12 @@ interface SwapInterfaceProps {
   protocolFeeUsd?: number;
   relayerFeeUsd?: number;
   totalFeeUsd?: number;
-  estimatedTime?: number | null; // Allow null for estimated time
+  estimatedTime?: number | null;
   enforceSourceChain?: boolean;
   renderActionButton?: () => ReactNode;
   detailsOpen?: boolean;
   onDetailsToggle?: () => void;
-  isLoadingQuote?: boolean; // Add this prop to track quote loading
+  isLoadingQuote?: boolean;
 }
 
 export function SwapInterface({
@@ -53,14 +53,9 @@ export function SwapInterface({
   } = useChainSwitch();
 
   // Get wallet connection information for EVM, Solana, and Sui
-  const { 
-    solanaAccount, 
-    evmNetwork, 
-    solanaNetwork, 
-    isEvmConnected, 
-    isSuiConnected
-  } = useWalletConnection();
-  
+  const { solanaAccount, evmNetwork, solanaNetwork, isEvmConnected } =
+    useWalletConnection();
+
   // Get Sui wallet info directly
   const { connected: suiConnected } = useWallet();
 
@@ -72,7 +67,6 @@ export function SwapInterface({
   // Determine if source chain requires specific wallet type
   const sourceRequiresSolana = sourceChain.mayanName.includes("solana");
   const sourceRequiresSui = sourceChain.mayanName.includes("sui");
-  const sourceRequiresEvm = !sourceRequiresSolana && !sourceRequiresSui;
 
   const checkCurrentChain = async (): Promise<boolean> => {
     if (!activeWallet) {
@@ -193,7 +187,7 @@ export function SwapInterface({
       }
     }
   }, [solanaNetwork.chainId, solanaAccount.isConnected]);
-  
+
   // Handle Sui wallet state - there's no chain switching for Sui yet,
   // but we should make sure the chainId is set properly in the store
   useEffect(() => {
@@ -242,7 +236,7 @@ export function SwapInterface({
         } else {
           requiredWalletType = "Ethereum";
         }
-        
+
         toast.error(`${requiredWalletType} wallet required`, {
           description: `Please connect a ${requiredWalletType} wallet to continue`,
         });
@@ -258,7 +252,7 @@ export function SwapInterface({
           });
           return;
         }
-        
+
         // Execute the action directly since we can't switch chains in Sui yet
         if (actionButton?.onClick) {
           setIsProcessing(true);

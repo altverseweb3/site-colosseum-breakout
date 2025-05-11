@@ -17,14 +17,12 @@ import {
   executeEvmSwap,
   executeSolanaSwap,
   executeSuiSwap,
-  testSuiWalletConnection,
 } from "@/utils/mayanSwapMethods";
 import { Quote } from "@mayanfinance/swap-sdk";
 import { toast } from "sonner";
 import { useWalletProviderAndSigner } from "@/utils/mayanSwapMethods";
 import { Connection } from "@solana/web3.js";
 import { useWallet } from "@suiet/wallet-kit"; // Import Suiet hook
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 
 /**
  * Creates a properly formatted CAIP network ID with correct TypeScript typing
@@ -52,14 +50,13 @@ export function useWalletConnection() {
   // Track the wallet accounts for each namespace
   const evmAccount = useAppKitAccount({ namespace: "eip155" });
   const solanaAccount = useAppKitAccount({ namespace: "solana" });
-  
+
   // Get Sui wallet info from Suiet
-  const { 
-    connected: suiConnected, 
-    address: suiAddress, 
+  const {
+    connected: suiConnected,
+    address: suiAddress,
     name: suiWalletName,
     disconnect: disconnectSui,
-    signTransaction: suiSignTransaction,
   } = useWallet();
 
   // Get wallet information for each namespace
@@ -99,9 +96,9 @@ export function useWalletConnection() {
 
       // Map for Sui networks (add appropriate mappings)
       const suiNetworkMap: Record<string, number> = {
-        "mainnet": 1, // Sui mainnet
-        "testnet": 2,
-        "devnet": 3,
+        mainnet: 1, // Sui mainnet
+        testnet: 2,
+        devnet: 3,
         // Add other Sui networks as needed
       };
 
@@ -228,12 +225,7 @@ export function useWalletConnection() {
       const store = useWeb3Store.getState();
       store.removeWallet(WalletType.SUIET_SUI);
     }
-  }, [
-    suiConnected,
-    suiAddress,
-    suiWalletName,
-    syncWalletToStore,
-  ]);
+  }, [suiConnected, suiAddress, suiWalletName, syncWalletToStore]);
 
   // Monitor EVM chain changes
   useEffect(() => {
@@ -319,7 +311,9 @@ export function useWalletConnection() {
           if (suiButton && suiButton instanceof HTMLButtonElement) {
             suiButton.click();
           } else {
-            throw new Error("Could not find Sui wallet button to trigger connection");
+            throw new Error(
+              "Could not find Sui wallet button to trigger connection",
+            );
           }
         } else {
           // Open the general connect modal
@@ -422,7 +416,13 @@ export function useWalletConnection() {
         throw error;
       }
     },
-    [disconnect, evmAccount.isConnected, solanaAccount.isConnected, suiConnected, disconnectSui],
+    [
+      disconnect,
+      evmAccount.isConnected,
+      solanaAccount.isConnected,
+      suiConnected,
+      disconnectSui,
+    ],
   );
 
   /**
@@ -513,11 +513,11 @@ export function useWalletConnection() {
         if (!suiConnected || !suiAddress) {
           return null;
         }
-        
+
         const walletName = suiWalletName || "Sui Wallet";
         const shortenedAddress = truncateAddress(suiAddress);
         const icon = "/wallets/sui.svg";
-        
+
         return {
           name: walletName,
           address: shortenedAddress,
@@ -601,7 +601,12 @@ export function useWalletConnection() {
     }
 
     return result;
-  }, [evmAccount.isConnected, getWalletDisplayInfo, solanaAccount.isConnected, suiConnected]);
+  }, [
+    evmAccount.isConnected,
+    getWalletDisplayInfo,
+    solanaAccount.isConnected,
+    suiConnected,
+  ]);
 
   // used to display truncated wallet address
   const truncateAddress = (address: string) => {
@@ -676,45 +681,45 @@ export function useChainSwitch() {
 
   const switchToChain = async (chain: Chain): Promise<boolean> => {
     setError(null);
-  
+
     // Check if wallet is connected
     if (!activeWallet) {
       const errorMsg = "No wallet connected. Please connect your wallet first.";
       setError(errorMsg);
       return false;
     }
-  
+
     // Check wallet type compatibility with the chain
     const isSolanaChain = chain.mayanName.includes("solana");
     const isSuiChain = chain.mayanName.includes("sui");
     const isEvmChain = !isSolanaChain && !isSuiChain;
-  
+
     const isSolanaWallet = activeWallet.type === WalletType.REOWN_SOL;
     const isEvmWallet = activeWallet.type === WalletType.REOWN_EVM;
     const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI;
-  
+
     // Incompatible wallet/chain combinations
     if (isSolanaWallet && !isSolanaChain) {
       const errorMsg = "Cannot switch a Solana wallet to a non-Solana chain.";
       setError(errorMsg);
       return false;
     }
-  
+
     if (isEvmWallet && !isEvmChain) {
       const errorMsg = "Cannot switch an EVM wallet to a non-EVM chain.";
       setError(errorMsg);
       return false;
     }
-  
+
     if (isSuiWallet && !isSuiChain) {
       const errorMsg = "Cannot switch a Sui wallet to a non-Sui chain.";
       setError(errorMsg);
       return false;
     }
-  
+
     try {
       setIsLoading(true);
-  
+
       // For Sui wallets, just update the store with the chain ID
       if (isSuiWallet && isSuiChain) {
         useWeb3Store
@@ -722,16 +727,16 @@ export function useChainSwitch() {
           .updateWalletChainId(activeWallet.type, chain.chainId);
         return true;
       }
-  
+
       // For EVM and Solana wallets, proceed with regular network switching
       const namespace = isSolanaChain ? "solana" : "eip155";
-  
+
       // Create properly typed CAIP network ID
       const caipNetworkId = createCaipNetworkId(
         namespace as "eip155" | "solana" | "bip122" | "polkadot",
         chain.chainId,
       );
-  
+
       // Create a proper Reown network definition
       const reownNetwork = defineChain({
         id: chain.chainId,
@@ -757,19 +762,19 @@ export function useChainSwitch() {
             }
           : undefined,
       });
-  
+
       // Use the appropriate network switcher
       if (isSolanaChain) {
         await solanaNetwork.switchNetwork(reownNetwork);
       } else if (isEvmChain) {
         await evmNetwork.switchNetwork(reownNetwork);
       }
-  
+
       // Update the store
       useWeb3Store
         .getState()
         .updateWalletChainId(activeWallet.type, chain.chainId);
-  
+
       return true;
     } catch (error) {
       const message =
@@ -800,11 +805,11 @@ export function useChainSwitch() {
 
       // Check wallet type compatibility with source chain
       const isSolanaChain = sourceChain.mayanName.includes("solana");
-      const isSuiChain = sourceChain.mayanName.includes("sui");  // Add Sui chain detection
-      
+      const isSuiChain = sourceChain.mayanName.includes("sui"); // Add Sui chain detection
+
       const isSolanaWallet = activeWallet.type === WalletType.REOWN_SOL;
       const isEvmWallet = activeWallet.type === WalletType.REOWN_EVM;
-      const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI;  // Add Sui wallet detection
+      const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI; // Add Sui wallet detection
 
       if (isSolanaWallet && !isSolanaChain) {
         const errorMsg = "Cannot switch a Solana wallet to a non-Solana chain.";
@@ -854,11 +859,11 @@ export function useChainSwitch() {
 
       // Check wallet type compatibility with destination chain
       const isSolanaChain = destinationChain.mayanName.includes("solana");
-      const isSuiChain = destinationChain.mayanName.includes("sui");  // Add Sui chain detection
-      
+      const isSuiChain = destinationChain.mayanName.includes("sui"); // Add Sui chain detection
+
       const isSolanaWallet = activeWallet.type === WalletType.REOWN_SOL;
       const isEvmWallet = activeWallet.type === WalletType.REOWN_EVM;
-      const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI;  // Add Sui wallet detection
+      const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI; // Add Sui wallet detection
 
       if (isSolanaWallet && !isSolanaChain) {
         const errorMsg = "Cannot switch a Solana wallet to a non-Solana chain.";
@@ -898,11 +903,11 @@ export function useChainSwitch() {
     if (!activeWallet) return false;
 
     const isSolanaChain = chain.mayanName.includes("solana");
-    const isSuiChain = chain.mayanName.includes("sui");  // Add Sui chain detection
-    
+    const isSuiChain = chain.mayanName.includes("sui"); // Add Sui chain detection
+
     const isSolanaWallet = activeWallet.type === WalletType.REOWN_SOL;
     const isEvmWallet = activeWallet.type === WalletType.REOWN_EVM;
-    const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI;  // Add Sui wallet detection
+    const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI; // Add Sui wallet detection
 
     // Incompatible combinations
     if (isSolanaWallet && !isSolanaChain) return false;
@@ -948,11 +953,11 @@ export async function ensureCorrectChain(
 
   // Check wallet type compatibility with target chain
   const isSolanaChain = targetChain.mayanName.includes("solana");
-  const isSuiChain = targetChain.mayanName.includes("sui");  // Add Sui chain detection
-  
+  const isSuiChain = targetChain.mayanName.includes("sui"); // Add Sui chain detection
+
   const isSolanaWallet = activeWallet.type === WalletType.REOWN_SOL;
   const isEvmWallet = activeWallet.type === WalletType.REOWN_EVM;
-  const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI;  // Add Sui wallet detection
+  const isSuiWallet = activeWallet.type === WalletType.SUIET_SUI; // Add Sui wallet detection
 
   if (isSolanaWallet && !isSolanaChain) {
     console.error("Cannot switch a Solana wallet to a non-Solana chain");
@@ -990,8 +995,8 @@ export function ensureCorrectWalletTypeForChain(targetChain: Chain): boolean {
   const connectedWallets = store.connectedWallets;
 
   const isSolanaChain = targetChain.mayanName.includes("solana");
-  const isSuiChain = targetChain.mayanName.includes("sui");  // Add Sui chain detection
-  
+  const isSuiChain = targetChain.mayanName.includes("sui"); // Add Sui chain detection
+
   let neededWalletType;
   if (isSolanaChain) {
     neededWalletType = WalletType.REOWN_SOL;
@@ -1150,7 +1155,7 @@ export function useTokenTransfer(
   );
 
   // Get wallet providers and signers
-  const { getEvmSigner, getSolanaSigner, getSuiSigner } = useWalletProviderAndSigner();
+  const { getEvmSigner, getSolanaSigner } = useWalletProviderAndSigner();
 
   const latestRequestIdRef = useRef<number>(0);
 
@@ -1158,9 +1163,6 @@ export function useTokenTransfer(
   const sourceRequiresSolana = sourceChain.mayanName.includes("solana");
   const sourceRequiresSui = sourceChain.mayanName.includes("sui");
   const wallet = useWallet();
-  const [suiClient] = useState(() => new SuiClient({
-    url: getFullnodeUrl("mainnet")
-  }));
 
   // Check wallet compatibility when source chain changes
   useEffect(() => {
@@ -1505,7 +1507,7 @@ export function useTokenTransfer(
       } else {
         requiredWalletType = "Ethereum";
       }
-      
+
       toast.error(`${requiredWalletType} wallet required`, {
         description: `Please connect a ${requiredWalletType} wallet to continue`,
       });
@@ -1607,7 +1609,9 @@ export function useTokenTransfer(
       } else if (sourceRequiresSui) {
         // Get Sui signer
         if (!wallet || !wallet.signAndExecuteTransaction) {
-          throw new Error("Sui wallet not connected or doesn't support signAndExecuteTransaction");
+          throw new Error(
+            "Sui wallet not connected or doesn't support signAndExecuteTransaction",
+          );
         }
         debugger;
         result = await executeSuiSwap({
@@ -1619,10 +1623,9 @@ export function useTokenTransfer(
             evm: "0x95C0029426afa8E47a71b8E6b251f5B70511e599",
             sui: "0xc232b25bd8796b2b1c8797f66f732fd22aa01db65102fe9f22f76b51af78476e",
           },
-          signTransaction: wallet.signTransaction
-
+          signTransaction: wallet.signTransaction,
         });
-      }else {
+      } else {
         // Get EVM signer
         const evmSigner = await getEvmSigner();
 
