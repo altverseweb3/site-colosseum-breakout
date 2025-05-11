@@ -237,7 +237,7 @@ export const VaultModal = ({
         provider: "BrowserProvider",
         walletAddress: activeWallet.address,
         token: selectedAsset.id,
-        vaultId: vault.id,
+        vaultId: vault?.id,
         amount: amount,
       });
 
@@ -245,13 +245,13 @@ export const VaultModal = ({
       const result = await depositToVaultSimple(
         provider,
         selectedAsset.id,
-        vault.id,
+        vault?.id ?? 0,
         amount,
       );
 
       if (result.success) {
         alert(
-          `Deposit successful: ${amount} ${selectedAsset.name} deposited to ${vault.name}`,
+          `Deposit successful: ${amount} ${selectedAsset.name} deposited to ${vault?.name ?? "vault"}`,
         );
         onOpenChange(false);
       } else {
