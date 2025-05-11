@@ -6,17 +6,31 @@ import {
   swapFromSolana,
   addresses,
   SolanaTransactionSigner,
+  createSwapFromSuiMoveCalls,
+  ComposableSuiMoveCallsOptions,
+  SuiFunctionParameter,
 } from "@mayanfinance/swap-sdk";
 import { Token, Chain } from "@/types/web3";
 import { ethers, Overrides, JsonRpcSigner } from "ethers";
 import { useAppKitProvider } from "@reown/appkit/react";
 import { getSafeProvider, getSafeSolanaProvider } from "./providerUtils";
 import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import { useWallet } from "@suiet/wallet-kit";
+import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
+import { SignedTransaction } from "@mysten/wallet-standard";
+
 
 interface ReferrerAddresses {
   evm?: string;
   solana?: string;
   sui?: string;
+}
+
+export interface SuiSignerParams {
+  suiAddress: string;
+  signAndExecuteTransaction: (transaction: any) => Promise<any>;
+  signMessage: (message: Uint8Array) => Promise<{ signature: string }>;
 }
 
 /**
@@ -92,14 +106,14 @@ export function useWalletProviderAndSigner() {
           }
 
           return safeProvider.signTransaction(
-            transaction,
+            transaction
           ) as Promise<Transaction>;
         },
         signAllTransactions: async (transactions: Transaction[]) => {
           // Use provider's signAllTransactions method to sign multiple
           if (typeof safeProvider.signAllTransactions !== "function") {
             throw new Error(
-              "Solana provider does not support signAllTransactions",
+              "Solana provider does not support signAllTransactions"
             );
           }
 
@@ -122,6 +136,26 @@ export function useWalletProviderAndSigner() {
     }
   };
 
+  const getSuiSigner = async () => {
+    // We need to make sure this function is called from a component
+    // where the useWallet hook is available
+    const wallet = useWallet();
+
+    if (!wallet || !wallet.signAndExecuteTransaction) {
+      throw new Error(
+        "Sui wallet not connected or doesn't support signAndExecuteTransaction"
+      );
+    }
+
+    // Create SuiClient for mainnet
+    const suiClient = new SuiClient({ url: getFullnodeUrl("mainnet") });
+
+    return {
+      suiClient,
+      signAndExecuteTransaction: wallet.signAndExecuteTransaction,
+    };
+  };
+
   /**
    * Get appropriate signer based on active wallet type
    * This is the main function to use for getting a signer for transactions
@@ -132,6 +166,7 @@ export function useWalletProviderAndSigner() {
     solanaProvider,
     getEvmSigner, // Direct access to EVM signer if needed
     getSolanaSigner, // Direct access to Solana signer if needed
+    getSuiSigner, // Direct access to Sui signer if needed
   };
 }
 
@@ -140,7 +175,7 @@ export async function approveTokenSpending(
   amount: string,
   spenderAddress: string,
   signer: ethers.JsonRpcSigner,
-  tokenDecimals: number = 18,
+  tokenDecimals: number = 18
 ): Promise<boolean> {
   try {
     console.log(`Checking allowance for token ${tokenAddress}`);
@@ -153,14 +188,14 @@ export async function approveTokenSpending(
     const tokenContract = new ethers.Contract(
       tokenAddress,
       tokenInterface,
-      signer,
+      signer
     );
     const ownerAddress = await signer.getAddress();
 
     // Check current allowance
     const allowance = await tokenContract.allowance(
       ownerAddress,
-      spenderAddress,
+      spenderAddress
     );
     const amountWei = ethers.parseUnits(amount, tokenDecimals);
 
@@ -171,7 +206,7 @@ export async function approveTokenSpending(
       try {
         const tx = await tokenContract.approve(
           spenderAddress,
-          ethers.MaxUint256,
+          ethers.MaxUint256
         );
         console.log("Approval transaction sent:", tx.hash);
         await tx.wait();
@@ -180,7 +215,7 @@ export async function approveTokenSpending(
       } catch (error) {
         console.error(
           "Error with unlimited approval, trying exact amount:",
-          error,
+          error
         );
 
         // Some tokens don't allow unlimited approvals, try the exact amount
@@ -248,7 +283,7 @@ export async function executeEvmSwap({
         amount,
         forwarderAddress,
         signer,
-        tokenDecimals,
+        tokenDecimals
       );
     }
 
@@ -263,7 +298,7 @@ export async function executeEvmSwap({
       signer,
       null, // No permit - using traditional approval only
       overrides,
-      payload,
+      payload
     );
 
     // Handle result based on type
@@ -300,10 +335,10 @@ export async function executeSolanaSwap({
   solanaSigner: {
     publicKey: string;
     signTransaction: (
-      transaction: Transaction | VersionedTransaction,
+      transaction: Transaction | VersionedTransaction
     ) => Promise<Transaction | VersionedTransaction>;
     signAllTransactions?: (
-      transactions: (Transaction | VersionedTransaction)[],
+      transactions: (Transaction | VersionedTransaction)[]
     ) => Promise<(Transaction | VersionedTransaction)[]>;
     signMessage?: (message: Uint8Array) => Promise<{ signature: Uint8Array }>;
   };
@@ -316,13 +351,13 @@ export async function executeSolanaSwap({
 
     // This implements the function with proper overload signatures
     const transactionSigner = function (
-      transaction: VersionedTransaction | Transaction,
+      transaction: VersionedTransaction | Transaction
     ) {
       console.log(
         "About to sign transaction:",
         transaction instanceof Transaction
           ? `Regular transaction with ${transaction.instructions.length} instructions`
-          : `Versioned transaction with message version ${transaction.version}`,
+          : `Versioned transaction with message version ${transaction.version}`
       );
 
       // Log transaction details before signing
@@ -330,7 +365,7 @@ export async function executeSolanaSwap({
         console.log("Transaction feePayer:", transaction.feePayer?.toBase58());
         console.log(
           "Transaction recent blockhash:",
-          transaction.recentBlockhash,
+          transaction.recentBlockhash
         );
       }
 
@@ -349,7 +384,7 @@ export async function executeSolanaSwap({
       destinationAddress,
       referrerAddresses,
       transactionSigner,
-      connection,
+      connection
     );
 
     console.log("Swap result:", result);
@@ -383,6 +418,153 @@ export async function executeSolanaSwap({
     throw error;
   }
 }
+
+export async function testSuiWalletConnection({
+  walletAddress,
+  signAndExecuteTransaction,
+  rpcUrl = getFullnodeUrl("mainnet")
+}: {
+  walletAddress: string;
+  signAndExecuteTransaction: <Output>(
+    input: { transaction: SuiTransaction },
+    options?: any
+  ) => Promise<Output>;
+  rpcUrl?: string;
+}): Promise<{ success: boolean; message: string; txId?: string }> {
+  try {
+    console.log("Testing SUI wallet connection for address:", walletAddress);
+
+    // Create a SuiClient
+    const suiClient = new SuiClient({ url: getFullnodeUrl("mainnet") });
+    debugger;
+    // Verify client connection
+    try {
+      const latestCheckpoint =
+        await suiClient.getLatestCheckpointSequenceNumber();
+      console.log(
+        "SUI client connection successful, latest checkpoint:",
+        latestCheckpoint
+      );
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to connect to SUI network: ${error}`,
+      };
+    }
+
+    // Just check balance - no transaction
+    const { totalBalance } = await suiClient.getBalance({
+      owner: walletAddress,
+      coinType: "0x2::sui::SUI",
+    });
+
+    console.log(`Total SUI balance: ${totalBalance}`);
+
+    // Return success with this information
+    return {
+      success: true,
+      message: `SUI wallet connection successful. Balance: ${BigInt(totalBalance) / BigInt(1000000000)} SUI`,
+    };
+  } catch (error) {
+    console.error("Error in wallet connection test:", error);
+    return {
+      success: false,
+      message: `SUI wallet test failed: ${error}`,
+    };
+  }
+}
+
+/**
+ * Execute a Sui swap
+ */
+export async function executeSuiSwap({
+  quote,
+  swapperAddress,
+  destinationAddress,
+  referrerAddresses = null,
+  signTransaction, // This might need to use the wallet directly instead
+}: {
+  quote: Quote;
+  swapperAddress: string;
+  destinationAddress: string;
+  referrerAddresses?: {
+    solana?: string;
+    evm?: string;
+    sui?: string;
+  } | null;
+  signTransaction: (
+    input: { transaction: SuiTransaction } // Change parameter name from 'transactionBlock' to 'transaction'
+  ) => Promise<SignedTransaction>;
+}): Promise<string> {
+  try {
+    if (!quote) throw new Error("Invalid quote");
+
+    const suiClient = new SuiClient({ url: getFullnodeUrl("mainnet") });
+
+    // Get the transaction block from Mayan SDK
+    const txBlock = await createSwapFromSuiMoveCalls(
+      quote,
+      swapperAddress,
+      destinationAddress,
+      referrerAddresses,
+      null,
+      suiClient
+    );
+    debugger;
+    if (!txBlock) {
+      throw new Error("createSwapFromSuiMoveCalls did not return a transaction block.");
+    }
+
+    // Set the sender address
+    txBlock.setSender(swapperAddress);
+
+    // Configure gas
+    const gasPrice = await suiClient.getReferenceGasPrice();
+    txBlock.setGasBudget(100000000);
+    txBlock.setGasPrice(gasPrice);
+
+    // Build the transaction
+    await txBlock.build({ client: suiClient });
+
+    // Use 'transaction' instead of 'transactionBlock' to match Suiet wallet expectation
+    const signedTx = await signTransaction({
+      transaction: txBlock, // Changed from transactionBlock to transaction
+    });
+
+    // Execute the transaction
+    const executionResponse = await suiClient.executeTransactionBlock({
+      transactionBlock: signedTx.bytes,
+      signature: Array.isArray(signedTx.signature) ? signedTx.signature : [signedTx.signature],
+      options: {
+        showEffects: true,
+        showEvents: true,
+      },
+      requestType: 'WaitForEffectsCert',
+    });
+
+    // Rest of the function remains the same
+    if (executionResponse.effects?.status?.status === 'failure') {
+      console.error("Transaction execution failed on-chain:", executionResponse.effects.status.error);
+      throw new Error(`Sui transaction failed: ${executionResponse.effects.status.error}`);
+    }
+    
+    if (!executionResponse.digest) {
+      throw new Error("Transaction processed, but no digest was returned. Check effects.");
+    }
+
+    console.log("Sui swap transaction successful. Digest:", executionResponse.digest);
+    return executionResponse.digest;
+
+  } catch (error) {
+    console.error("Error executing Sui swap:", error);
+    // Error handling as before
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error(String(error));
+    }
+  }
+}
 interface GetMayanQuoteParams {
   amount: string;
   sourceToken: Token;
@@ -401,7 +583,7 @@ interface GetMayanQuoteParams {
  * @returns A promise that resolves to an array of Quote objects
  */
 export async function getMayanQuote(
-  params: GetMayanQuoteParams,
+  params: GetMayanQuoteParams
 ): Promise<Quote[]> {
   const {
     amount,

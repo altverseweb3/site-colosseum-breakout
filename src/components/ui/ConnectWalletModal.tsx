@@ -16,7 +16,7 @@ import { WalletInfo, WalletType } from "@/types/web3";
 import { cn } from "@/lib/utils";
 import { useAppKit } from "@reown/appkit/react";
 import { useWalletConnection } from "@/utils/walletMethods";
-import { ConnectButton } from "@suiet/wallet-kit";
+import { ConnectButton, useWallet } from "@suiet/wallet-kit";
 import useWeb3Store from "@/store/web3Store";
 
 type WalletOption = {
@@ -30,51 +30,28 @@ type WalletOption = {
 
 const CustomSuiConnectButton = ({ className }: { className?: string }) => {
   const buttonRef = useRef<HTMLDivElement>(null);
+  const { connected, disconnect } = useWallet(); // Access Sui wallet state directly
+  const isConnected = useWeb3Store((state) => state.isWalletTypeConnected(WalletType.SUIET_SUI));
 
   const handleCustomClick = () => {
-    console.log("[DEBUG] Custom Sui Button Clicked");
-
-    if (!buttonRef.current) {
-      console.error("[DEBUG] buttonRef.current is null or undefined.");
-      return;
-    }
-
-    console.log("[DEBUG] buttonRef.current:", buttonRef.current);
-
-    const suietButton = buttonRef.current.querySelector("button");
-
-    if (suietButton?.classList.contains("wkit-connected-button")) {
-      console.log(
-        "[DEBUG] Detected 'wkit-connected-button'. Wallet appears to be already connected.",
-      );
-      toast.info("Sui wallet already connected.");
-    }
-
-    if (!suietButton) {
-      console.error(
-        "[DEBUG] Could not find the <button> element inside the hidden div.",
-      );
-      console.log(
-        "[DEBUG] Inner HTML of hidden div:",
-        buttonRef.current.innerHTML,
-      );
-      return;
-    }
-
-    console.log("[DEBUG] Found suietButton element:", suietButton);
-
-    try {
-      console.log("[DEBUG] Attempting to click the hidden suietButton...");
+    if (connected) {
+      // If connected, disconnect
+      disconnect();
+      // Store will be updated via the SuiWalletSync component
+    } else {
+      // If not connected, click the hidden button
+      if (!buttonRef.current) {
+        console.error("Button ref is null or undefined.");
+        return;
+      }
+      
+      const suietButton = buttonRef.current.querySelector("button");
+      if (!suietButton) {
+        console.error("Could not find the button element inside the hidden div.");
+        return;
+      }
+      
       suietButton.click();
-      console.log("[DEBUG] Hidden suietButton.click() executed.");
-    } catch (error) {
-      console.error(
-        "[DEBUG] Error occurred during suietButton.click():",
-        error,
-      );
-      toast.error(
-        "An error occurred while trying to trigger the Sui wallet connection.",
-      );
     }
   };
 
@@ -84,7 +61,7 @@ const CustomSuiConnectButton = ({ className }: { className?: string }) => {
       <div
         ref={buttonRef}
         className="absolute opacity-0 pointer-events-auto inset-0 z-10"
-        style={{ height: "1px", width: "1px", overflow: "hidden" }} // Original hiding styles
+        style={{ height: "1px", width: "1px", overflow: "hidden" }}
       >
         <ConnectButton />
       </div>
@@ -93,13 +70,21 @@ const CustomSuiConnectButton = ({ className }: { className?: string }) => {
       <Button
         variant="outline"
         className={cn(
-          "w-full flex items-center justify-between px-3 py-6 rounded-md bg-[#18181B] border border-[#27272A] transition-colors text-[#FAFAFA] hover:bg-[#27272A]",
+          "w-full flex items-center justify-between px-3 py-6 rounded-md bg-[#18181B] border transition-colors text-[#FAFAFA] hover:bg-[#27272A]",
+          isConnected ? "border-amber-600" : "border-[#27272A]",
           className,
         )}
         onClick={handleCustomClick}
       >
         <div className="flex items-center">
           <span className="font-medium">sui wallets</span>
+          {isConnected && (
+            <span className="ml-3 text-xs text-amber-500">
+              {buttonRef.current?.querySelector("button")?.classList.contains("wkit-disconnecting-button") 
+                ? "disconnecting..." 
+                : "connected"}
+            </span>
+          )}
         </div>
         <div className="flex items-center">
           <Image
