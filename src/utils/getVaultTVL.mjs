@@ -52,6 +52,12 @@ const vaults = [
     protocol: 'Ether.fi',
     name: 'The Bera ETH Vault',
     expectedSymbol: 'wETH'
+  },
+  {
+    address: '0xC673ef7791724f0dcca38adB47Fbb3AEF3DB6C80',
+    protocol: 'Ether.fi',
+    name: 'The Bera BTC Vault',
+    expectedSymbol: 'wBTC'
   }
 ];
 

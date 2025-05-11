@@ -12,7 +12,8 @@ const VAULT_ID_TO_ADDRESS = {
   4: '0xE77076518A813616315EaAba6cA8e595E845EeE9', // EIGEN Restaking
   5: '0xbc0f3B23930fff9f4894914bD745ABAbA9588265', // UltraYield Stablecoin Vault
   6: '0xca8711dAF13D852ED2121E4bE3894Dae366039E4', // Liquid Move ETH
-  7: '0x83599937c2C9bEA0E0E8ac096c6f32e86486b410' // The Bera ETH Vault 
+  7: '0x83599937c2C9bEA0E0E8ac096c6f32e86486b410', // The Bera ETH Vault
+  8: '0xC673ef7791724f0dcca38adB47Fbb3AEF3DB6C80'  // The Bera BTC Vault
 };
 
 // Module-level cache to prevent duplicate fetches

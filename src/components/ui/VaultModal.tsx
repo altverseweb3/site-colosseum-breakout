@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
+import * as ethers from "ethers";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/StyledDialog";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import useWeb3Store from "@/store/web3Store";
 
 // Define the type for tokens
 type TokenAsset = {
@@ -176,15 +178,94 @@ export const VaultModal = ({
     allTokensForVault,
   ]);
 
+  // State for loading and error messages
+  const [isDepositLoading, setIsDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+
+  // Get global web3 state
+  const { activeWallet } = useWeb3Store();
+
+  // Access web3Provider when needed
+  const getWeb3Provider = () => {
+    if (typeof window === "undefined") return null;
+
+    try {
+      // Check if window.ethereum is available
+      if (window.ethereum) {
+        return new ethers.BrowserProvider(window.ethereum);
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting web3 provider:", error);
+      return null;
+    }
+  };
+
   if (!vault) return null;
 
-  const handleDepositConfirm = () => {
-    // This would normally interact with a blockchain wallet and contract
-    alert(
-      `Deposit of ${amount} ${selectedAsset.name} to ${vault.name} successful! (This is a demo message)`,
-    );
-    onOpenChange(false);
-  };
+  // Define the deposit handler function
+  async function handleDepositConfirm() {
+    // Skip during SSR
+    if (typeof window === "undefined") return;
+
+    // Get web3 provider
+    const provider = getWeb3Provider();
+
+    // Validation checks
+    if (!provider || !activeWallet) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      setDepositError("Please enter a valid amount");
+      return;
+    }
+
+    // Start deposit process
+    setIsDepositLoading(true);
+    setDepositError(null);
+
+    try {
+      // Import deposit function dynamically - use the simplified version
+      const { depositToVaultSimple } = await import(
+        "@/utils/vaultDepositHelper"
+      );
+
+      // Log deposit attempt
+      console.log("Attempting deposit with simplified function:", {
+        provider: "BrowserProvider",
+        walletAddress: activeWallet.address,
+        token: selectedAsset.id,
+        vaultId: vault.id,
+        amount: amount,
+      });
+
+      // Execute deposit with selected token and vault using simplified function
+      const result = await depositToVaultSimple(
+        provider,
+        selectedAsset.id,
+        vault.id,
+        amount,
+      );
+
+      if (result.success) {
+        alert(
+          `Deposit successful: ${amount} ${selectedAsset.name} deposited to ${vault.name}`,
+        );
+        onOpenChange(false);
+      } else {
+        setDepositError(result.message);
+      }
+    } catch (error) {
+      console.error("Deposit error:", error);
+      setDepositError(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    } finally {
+      setIsDepositLoading(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -440,13 +521,34 @@ export const VaultModal = ({
                     </div>
                   </div>
 
+                  {/* Error message */}
+                  {depositError && (
+                    <div className="text-red-400 text-sm mb-4">
+                      {depositError}
+                    </div>
+                  )}
+
                   {/* Deposit Button */}
                   <Button
                     className="w-full bg-amber-500 hover:bg-amber-600 text-black font-medium"
                     onClick={handleDepositConfirm}
-                    disabled={!amount || parseFloat(amount) <= 0}
+                    disabled={
+                      !amount ||
+                      parseFloat(amount) <= 0 ||
+                      isDepositLoading ||
+                      !activeWallet
+                    }
                   >
-                    Confirm Deposit
+                    {isDepositLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : !activeWallet ? (
+                      "Connect Wallet to Deposit"
+                    ) : (
+                      "Confirm Deposit"
+                    )}
                   </Button>
                 </>
               )}
