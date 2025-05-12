@@ -424,7 +424,6 @@ export async function executeSuiSwap({
       null,
       suiClient,
     );
-    debugger;
     if (!txBlock) {
       throw new Error(
         "createSwapFromSuiMoveCalls did not return a transaction block.",

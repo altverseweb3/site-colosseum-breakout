@@ -3,6 +3,7 @@
 import React from "react";
 import { useTokenTransfer } from "@/utils/walletMethods";
 import { TokenTransfer } from "@/components/ui/TokenTransfer";
+import useWeb3Store from "@/store/web3Store";
 
 const SwapComponent: React.FC = () => {
   // Use the shared hook for all swap functionality
@@ -10,7 +11,6 @@ const SwapComponent: React.FC = () => {
     amount,
     handleAmountChange,
     isButtonDisabled,
-    activeWallet,
     handleTransfer,
     receiveAmount,
     isLoadingQuote,
@@ -29,12 +29,16 @@ const SwapComponent: React.FC = () => {
     },
   });
 
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletBySourceChain(),
+  );
+
   return (
     <TokenTransfer
       amount={amount}
       onAmountChange={handleAmountChange}
       isButtonDisabled={isButtonDisabled}
-      hasActiveWallet={!!activeWallet}
+      hasActiveWallet={!!requiredWallet}
       onTransfer={handleTransfer}
       transferType="swap"
       actionIcon="Coins"

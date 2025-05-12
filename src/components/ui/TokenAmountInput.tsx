@@ -35,10 +35,10 @@ export function TokenAmountInput({
     if (!tokenAddress || !chainId) return null;
 
     // Create a wallet key that matches the one used in updateTokenBalances
-    const activeWallet = state.activeWallet;
-    if (!activeWallet) return null;
+    const requiredWallet = state.getWalletBySourceChain();
+    if (!requiredWallet) return null;
 
-    const walletKey = `${chainId}-${activeWallet.address.toLowerCase()}`;
+    const walletKey = `${chainId}-${requiredWallet.address.toLowerCase()}`;
     const balances = state.tokenBalancesByWallet[walletKey];
 
     return balances?.[tokenAddress] || null;

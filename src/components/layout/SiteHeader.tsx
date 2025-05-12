@@ -20,7 +20,9 @@ import Link from "next/link";
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
 
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletBySourceChain(),
+  );
 
   const handleSheetClose = () => {
     setIsOpen(false);
@@ -28,7 +30,7 @@ export function SiteHeader() {
 
   // Get wallet button text based on connection status
   const getWalletButtonText = () => {
-    if (!activeWallet) return "connect wallet";
+    if (!requiredWallet) return "connect wallet";
     return "wallet connected";
   };
 

@@ -125,7 +125,9 @@ export const ConnectWalletModal = ({
   const { open: openAppKit } = useAppKit();
   const { disconnectWallet, isWalletTypeConnected } = useWalletConnection();
 
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletBySourceChain(),
+  );
   const connectedWallets = useWeb3Store((state) => state.connectedWallets);
 
   // When modal opens, capture the current state of wallets
@@ -146,28 +148,28 @@ export const ConnectWalletModal = ({
 
   // Check for new wallet connections
   useEffect(() => {
-    if (!modalOpen || !activeWallet) return;
+    if (!modalOpen || !requiredWallet) return;
 
     // Check if this wallet was newly connected
-    const previousAddress = previousWalletsRef.current[activeWallet.type];
+    const previousAddress = previousWalletsRef.current[requiredWallet.type];
     const isNewWallet =
-      !previousAddress || previousAddress !== activeWallet.address;
+      !previousAddress || previousAddress !== requiredWallet.address;
 
     // Only react if this is a newly connected wallet AND the connection was initiated
     // within this component (not from elsewhere)
     if (isNewWallet && isNewConnectionRef.current) {
       // Update our record of connected wallets
-      previousWalletsRef.current[activeWallet.type] = activeWallet.address;
+      previousWalletsRef.current[requiredWallet.type] = requiredWallet.address;
 
       // Show success and close modal
       setModalOpen(false);
-      toast.success(`Connected to ${activeWallet.name}`);
+      toast.success(`Connected to ${requiredWallet.name}`);
       if (onSuccess) onSuccess();
 
       // Reset the connection flag
       isNewConnectionRef.current = false;
     }
-  }, [activeWallet, modalOpen, onSuccess]);
+  }, [requiredWallet, modalOpen, onSuccess]);
 
   // Special handler for Dialog onOpenChange
   const handleOpenChange = useCallback(

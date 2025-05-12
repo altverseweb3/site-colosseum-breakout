@@ -5,9 +5,10 @@ import useWeb3Store from "@/store/web3Store";
 import {
   Token,
   TokenAddressInfo,
-  TokenBalance,
   TokenPriceResult,
   TokenMetadata,
+  SolanaTokenBalance,
+  EnhancedTokenBalance,
 } from "@/types/web3";
 
 /**
@@ -54,7 +55,8 @@ function formatTokenBalance(balanceStr: string, decimals: number): string {
 
 export async function getPricesAndBalances(): Promise<boolean> {
   const store = useWeb3Store.getState();
-  const activeWallet = store.activeWallet;
+  const sourceWallet = store.getWalletBySourceChain();
+  const destinationWallet = store.getWalletByDestinationChain();
 
   store.setTokensLoading(true);
 
@@ -62,12 +64,12 @@ export async function getPricesAndBalances(): Promise<boolean> {
     const [sourceResult, destinationResult] = await Promise.allSettled([
       getPricesAndBalancesForChain(
         store.sourceChain.chainId,
-        activeWallet?.address,
+        sourceWallet?.address,
         "source",
       ),
       getPricesAndBalancesForChain(
         store.destinationChain.chainId,
-        activeWallet?.address,
+        destinationWallet?.address,
         "destination",
       ),
     ]);
@@ -112,17 +114,23 @@ export async function getPricesAndBalancesForChain(
 
     // 2. Fetch Balances only if userAddress is provided
     let addressesWithBalance: string[] = [];
-    let balanceData: TokenBalance[] | null = null;
+    let balanceData: EnhancedTokenBalance[] | null = null;
 
     if (userAddress) {
       try {
         console.log(
           `Fetching balances for address ${userAddress} on ${chainType} chain (${networkName})`,
         );
-        const balanceResponse = await evmTokenApi.getBalances({
-          network: networkName,
-          userAddress,
-        });
+        const balanceResponse =
+          chain.id === "solana"
+            ? await evmTokenApi.getSplBalances({
+                network: networkName,
+                userAddress,
+              })
+            : await evmTokenApi.getBalances({
+                network: networkName,
+                userAddress,
+              });
 
         if (balanceResponse.error || !balanceResponse.data) {
           console.error(
@@ -133,7 +141,30 @@ export async function getPricesAndBalancesForChain(
           useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
           // Continue to fetch alwaysLoadPrice tokens even if balance fetch fails
         } else {
-          balanceData = balanceResponse.data;
+          // Transform Solana response to match EVM format
+          if (chain.id === "solana") {
+            // Transform Solana SPL token response to match EVM format
+            balanceData = (balanceResponse.data as SolanaTokenBalance[]).map(
+              (splToken) => ({
+                contractAddress: splToken.mint, // mint address is the token contract for Solana
+                tokenBalance:
+                  splToken.uiAmountString ||
+                  splToken.uiAmount?.toString() ||
+                  "0", // Use already formatted amount
+                // Include additional Solana-specific properties that might be useful
+                decimals: splToken.decimals,
+                uiAmount: splToken.uiAmount,
+                uiAmountString: splToken.uiAmountString,
+                pubkey: splToken.pubkey,
+                owner: splToken.owner,
+                isNative: splToken.isNative || false,
+                // Store raw amount for reference if needed
+                rawAmount: splToken.amount,
+              }),
+            ) as EnhancedTokenBalance[];
+          } else {
+            balanceData = balanceResponse.data as EnhancedTokenBalance[];
+          }
 
           if (!balanceData || balanceData.length === 0) {
             console.log(
@@ -258,11 +289,56 @@ export async function getPricesAndBalancesForChain(
         const tokenAddress = balance.contractAddress.toLowerCase();
         const token = tokensByAddress[tokenAddress]; // Get token info (includes price)
 
+        // Type guard to check if balance has Solana-specific properties
+        const isSolanaBalance = (
+          bal: EnhancedTokenBalance,
+        ): bal is EnhancedTokenBalance & { isNative: boolean } => {
+          return "isNative" in bal;
+        };
+
+        // For Solana, check if this is a native SOL balance
+        if (
+          chain.id === "solana" &&
+          isSolanaBalance(balance) &&
+          balance.isNative
+        ) {
+          // Handle native SOL balance - it's already formatted
+          const formattedBalance = balance.tokenBalance; // Already formatted by API
+
+          let balanceUsd: string | undefined = undefined;
+          // For native SOL, we might need to look up the token info differently
+          // The mint address for native SOL is "11111111111111111111111111111111"
+          const nativeSolToken =
+            tokensByAddress["11111111111111111111111111111111"];
+          if (nativeSolToken && nativeSolToken.priceUsd) {
+            try {
+              const numBalance = parseFloat(formattedBalance);
+              const price =
+                typeof nativeSolToken.priceUsd === "string"
+                  ? parseFloat(nativeSolToken.priceUsd)
+                  : nativeSolToken.priceUsd;
+              if (!isNaN(numBalance) && !isNaN(price)) {
+                balanceUsd = (numBalance * price).toFixed(2);
+              }
+            } catch (e) {
+              console.error(`Error calculating USD balance for native SOL:`, e);
+            }
+          }
+
+          return {
+            ...balance,
+            tokenBalance: formattedBalance,
+            balanceUsd,
+          };
+        }
+
         if (token && token.decimals !== undefined) {
-          const formattedBalance = formatTokenBalance(
-            balance.tokenBalance,
-            token.decimals,
-          );
+          // For Solana SPL tokens, the balance is already formatted by the API
+          // For EVM tokens, we need to format them
+          const formattedBalance =
+            chain.id === "solana"
+              ? balance.tokenBalance // Already formatted by Solana API
+              : formatTokenBalance(balance.tokenBalance, token.decimals); // Format for EVM
 
           let balanceUsd: string | undefined = undefined;
           // Use the price fetched and stored in the token object

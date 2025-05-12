@@ -16,6 +16,7 @@ import useWeb3Store, {
   useSetGasDrop,
   useDestinationChain,
 } from "@/store/web3Store";
+import { WalletType } from "@/types/web3";
 
 interface TransactionDetailsProps {
   protocolFeeUsd?: number;
@@ -33,12 +34,16 @@ export function TransactionDetails({
   onToggle,
 }: TransactionDetailsProps) {
   // ─── Zustand store hooks ─────────────────────────────────────────────────────
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const connectedWallets = useWeb3Store((state) => state.connectedWallets);
+  const getWalletByType = useWeb3Store((state) => state.getWalletByType);
   const transactionDetails = useTransactionDetails();
   const setSlippageValue = useSetSlippageValue();
   const setReceiveAddress = useSetReceiveAddress();
   const setGasDrop = useSetGasDrop();
   const destinationChain = useDestinationChain();
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletByType(destinationChain.walletType),
+  );
 
   // ─── Local state ─────────────────────────────────────────────────────────────
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(isOpen || false);
@@ -47,6 +52,7 @@ export function TransactionDetails({
   const [slippageError, setSlippageError] = useState<string | null>(null);
   const [isEditingReceiveAddress, setIsEditingReceiveAddress] = useState(false);
   const [receiveAddressInput, setReceiveAddressInput] = useState("");
+  const [addressError, setAddressError] = useState<string | null>(null);
 
   // ─── Gas Drop ─────────────────────────────────────────────────────────────
   const [isGasDropEnabled, setIsGasDropEnabled] = useState<boolean>(false);
@@ -70,6 +76,36 @@ export function TransactionDetails({
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   /**
+   * Check if the address is valid for the given wallet type
+   */
+  const validateAddressForWalletType = useCallback(
+    (address: string, walletType?: WalletType): boolean => {
+      if (!address || !walletType) return false;
+
+      // Check for Ethereum address (starts with 0x followed by 40 hex chars)
+      const isEthereumAddress = /^0x[a-fA-F0-9]{40}$/.test(address);
+
+      // Check for Solana address (Base58 encoded, typically 32-44 chars)
+      const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+
+      // Check for Sui address (starts with 0x followed by 64 hex chars)
+      const isSuiAddress = /^0x[a-fA-F0-9]{64}$/.test(address);
+
+      switch (walletType) {
+        case WalletType.REOWN_EVM:
+          return isEthereumAddress;
+        case WalletType.REOWN_SOL:
+          return isSolanaAddress;
+        case WalletType.SUIET_SUI:
+          return isSuiAddress;
+        default:
+          return false;
+      }
+    },
+    [],
+  );
+
+  /**
    * Format a slippage string (e.g. "3" or "3.0" or "3.00")
    * into "3.00%". If NaN, return DEFAULT_AUTO_SLIPPAGE.
    */
@@ -80,25 +116,85 @@ export function TransactionDetails({
   };
 
   /**
+   * Get error message for address validation
+   */
+  const getAddressErrorMessage = (
+    address: string,
+    walletType?: WalletType,
+  ): string | null => {
+    if (!address) return "Address is required";
+    if (!walletType) return "Invalid wallet type";
+
+    switch (walletType) {
+      case WalletType.REOWN_EVM:
+        return /^0x[a-fA-F0-9]{40}$/.test(address)
+          ? null
+          : "Invalid Ethereum address format";
+      case WalletType.REOWN_SOL:
+        return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
+          ? null
+          : "Invalid Solana address format";
+      case WalletType.SUIET_SUI:
+        return /^0x[a-fA-F0-9]{64}$/.test(address)
+          ? null
+          : "Invalid Sui address format";
+      default:
+        return "Unsupported wallet type";
+    }
+  };
+
+  /**
    * Save the receiveAddressInput into the store if valid,
-   * otherwise revert to wallet address.
+   * otherwise keep the error state.
    */
   const saveReceiveAddress = useCallback(() => {
-    // Check for Ethereum address (starts with 0x followed by 40 hex chars)
-    const isEthereumAddress = /^0x[a-fA-F0-9]{40}$/.test(receiveAddressInput);
+    const walletType = destinationChain?.walletType;
+    const error = getAddressErrorMessage(receiveAddressInput, walletType);
 
-    // Check for Solana address (Base58 encoded, typically 32-44 chars)
-    const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
-      receiveAddressInput,
-    );
-
-    if (isEthereumAddress || isSolanaAddress) {
+    if (!error) {
       setReceiveAddress(receiveAddressInput);
-    } else if (!receiveAddressInput && activeWallet) {
-      setReceiveAddressInput(activeWallet.address);
+      setAddressError(null);
+    } else {
+      setAddressError(error);
     }
+
     setIsEditingReceiveAddress(false);
-  }, [receiveAddressInput, activeWallet, setReceiveAddress]);
+  }, [receiveAddressInput, destinationChain?.walletType, setReceiveAddress]);
+
+  /**
+   * Update the receive address based on destination chain wallet type
+   */
+  const updateReceiveAddressForChain = useCallback(() => {
+    if (!destinationChain?.walletType) return;
+
+    // Try to get a wallet of the needed type
+    const matchingWallet = getWalletByType(destinationChain.walletType);
+
+    if (matchingWallet) {
+      // We have a matching wallet, use its address
+      setReceiveAddressInput(matchingWallet.address);
+      setReceiveAddress(matchingWallet.address);
+      setAddressError(null);
+    } else {
+      // No matching wallet, clear the address or keep existing if valid
+      const currentAddress = transactionDetails.receiveAddress || "";
+      const error = getAddressErrorMessage(
+        currentAddress,
+        destinationChain.walletType,
+      );
+
+      if (error) {
+        // Current address is invalid for new chain, clear it
+        setReceiveAddressInput("");
+        setReceiveAddress(null);
+      }
+    }
+  }, [
+    destinationChain?.walletType,
+    getWalletByType,
+    setReceiveAddress,
+    transactionDetails.receiveAddress,
+  ]);
 
   // ─── Effects ────────────────────────────────────────────────────────────────
 
@@ -117,13 +213,61 @@ export function TransactionDetails({
 
     if (transactionDetails.receiveAddress) {
       setReceiveAddressInput(transactionDetails.receiveAddress);
-    } else if (activeWallet) {
-      setReceiveAddressInput(activeWallet.address);
+    } else if (requiredWallet) {
+      setReceiveAddressInput(requiredWallet.address);
     }
 
     // run once
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Update receive address when destination chain changes
+  useEffect(() => {
+    updateReceiveAddressForChain();
+  }, [destinationChain, updateReceiveAddressForChain]);
+
+  // Update when new wallets are connected
+  useEffect(() => {
+    if (destinationChain?.walletType) {
+      const matchingWallet = getWalletByType(destinationChain.walletType);
+
+      if (
+        matchingWallet &&
+        (!transactionDetails.receiveAddress ||
+          !validateAddressForWalletType(
+            transactionDetails.receiveAddress,
+            destinationChain.walletType,
+          ))
+      ) {
+        // Update to the new wallet address if we don't have a valid address already
+        setReceiveAddressInput(matchingWallet.address);
+        setReceiveAddress(matchingWallet.address);
+        setAddressError(null);
+      }
+    }
+  }, [
+    connectedWallets,
+    destinationChain?.walletType,
+    getWalletByType,
+    setReceiveAddress,
+    transactionDetails.receiveAddress,
+    validateAddressForWalletType,
+  ]);
+
+  // Validate current address when editing stops
+  useEffect(() => {
+    if (!isEditingReceiveAddress && receiveAddressInput) {
+      const error = getAddressErrorMessage(
+        receiveAddressInput,
+        destinationChain?.walletType,
+      );
+      setAddressError(error);
+    }
+  }, [
+    isEditingReceiveAddress,
+    receiveAddressInput,
+    destinationChain?.walletType,
+  ]);
 
   // Click‐outside handler for receive address input
   useEffect(() => {
@@ -244,11 +388,15 @@ export function TransactionDetails({
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     setReceiveAddressInput(e.target.value);
+    // Clear error while typing
+    setAddressError(null);
   };
 
   // Determine what to show as the current receiving address
   const receivingAddress =
-    transactionDetails.receiveAddress || activeWallet?.address || "0x000...000";
+    transactionDetails.receiveAddress ||
+    requiredWallet?.address ||
+    "0x000...000";
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -358,7 +506,9 @@ export function TransactionDetails({
                     type="text"
                     value={receiveAddressInput}
                     onChange={handleReceiveAddressChange}
-                    className="numeric-input bg-transparent text-right text-zinc-200 sm:text-xs text-[9px] w-full outline-none"
+                    className={`numeric-input bg-transparent text-right text-zinc-200 sm:text-xs text-[9px] w-full outline-none ${
+                      addressError ? "text-red-500" : ""
+                    }`}
                     autoFocus
                   />
                 </div>
@@ -371,11 +521,32 @@ export function TransactionDetails({
                   >
                     <Edit2 size={14} />
                   </button>
-                  <span className="text-zinc-200 sm:text-xs text-[9px] font-mono text-right">
+                  <span
+                    className={`sm:text-xs text-[9px] font-mono text-right ${
+                      addressError ? "text-red-500" : "text-zinc-200"
+                    }`}
+                  >
                     {receivingAddress}
                   </span>
+                  {addressError && (
+                    <div className="relative group ml-1">
+                      <AlertCircle size={14} className="text-red-500" />
+                      <div className="absolute top-full mt-1 right-0 bg-zinc-800 text-red-400 text-xs p-1 rounded-md w-48 hidden group-hover:block z-10">
+                        {addressError}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+            </div>
+            {/* Wallet Type Info */}
+            <div className="text-right text-zinc-500 text-[10px] mt-1">
+              {destinationChain?.walletType === WalletType.REOWN_EVM &&
+                "Ethereum wallet required"}
+              {destinationChain?.walletType === WalletType.REOWN_SOL &&
+                "Solana wallet required"}
+              {destinationChain?.walletType === WalletType.SUIET_SUI &&
+                "Sui wallet required"}
             </div>
           </div>
 

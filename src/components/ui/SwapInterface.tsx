@@ -53,37 +53,28 @@ export function SwapInterface({
   } = useChainSwitch();
 
   // Get wallet connection information for EVM, Solana, and Sui
-  const { solanaAccount, evmNetwork, solanaNetwork, isEvmConnected } =
-    useWalletConnection();
+  const { evmNetwork, isEvmConnected } = useWalletConnection();
 
   // Get Sui wallet info directly
   const { connected: suiConnected } = useWallet();
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletBySourceChain(),
+  );
   const sourceChain = useWeb3Store((state) => state.sourceChain);
 
-  // Determine if source chain requires specific wallet type
-  const sourceRequiresSolana = sourceChain.mayanName.includes("solana");
-  const sourceRequiresSui = sourceChain.mayanName.includes("sui");
-
   const checkCurrentChain = async (): Promise<boolean> => {
-    if (!activeWallet) {
+    if (!requiredWallet) {
       return false;
     }
 
     try {
       let currentChainId: number | undefined;
 
-      // Map of known Solana network IDs
-      const solanaNetworkMap: Record<string, number> = {
-        "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": 101, // Mainnet
-        // Add other Solana networks as needed
-      };
-
       // Check which wallet type we're using
-      if (activeWallet.type === WalletType.REOWN_EVM) {
+      if (requiredWallet.type === WalletType.REOWN_EVM) {
         // For EVM wallets, get chain ID from the EVM network
         if (evmNetwork.chainId !== undefined) {
           currentChainId =
@@ -91,40 +82,19 @@ export function SwapInterface({
               ? parseInt(evmNetwork.chainId, 10)
               : evmNetwork.chainId;
         }
-      } else if (activeWallet.type === WalletType.REOWN_SOL) {
-        // For Solana wallets, get chain ID from the Solana network
-        if (solanaNetwork.chainId !== undefined) {
-          if (typeof solanaNetwork.chainId === "string") {
-            // Use the mapping for Solana networks
-            currentChainId = solanaNetworkMap[solanaNetwork.chainId] || 101;
-            console.log(
-              `Mapped Solana chainId "${solanaNetwork.chainId}" to ${currentChainId}`,
-            );
-          } else {
-            currentChainId = solanaNetwork.chainId;
-          }
-        }
-      } else if (activeWallet.type === WalletType.SUIET_SUI) {
-        // For Sui wallets, we currently only support mainnet (chainId 1)
-        // Future: implement proper chain detection for Sui
-        currentChainId = 1; // Sui mainnet
       }
-
-      // If we still don't have a chainId, use the one from activeWallet
-      if (currentChainId === undefined) {
-        currentChainId = activeWallet.chainId;
-      }
+      // For Solana and Sui wallets, we only support the mainnet chain
 
       console.log("Current chain ID:", currentChainId);
       console.log("Source chain ID:", sourceChain.chainId);
 
       // Update the store if the chain ID has changed
       if (
-        activeWallet.chainId !== currentChainId &&
+        requiredWallet.chainId !== currentChainId &&
         currentChainId !== undefined
       ) {
         const store = useWeb3Store.getState();
-        store.updateWalletChainId(activeWallet.type, currentChainId);
+        store.updateWalletChainId(requiredWallet.type, currentChainId);
       }
 
       return currentChainId === sourceChain.chainId;
@@ -138,7 +108,7 @@ export function SwapInterface({
   useEffect(() => {
     if (
       isEvmConnected &&
-      activeWallet?.type === WalletType.REOWN_EVM &&
+      requiredWallet?.type === WalletType.REOWN_EVM &&
       evmNetwork.chainId !== undefined
     ) {
       const numericChainId =
@@ -146,62 +116,12 @@ export function SwapInterface({
           ? parseInt(evmNetwork.chainId, 10)
           : evmNetwork.chainId;
 
-      if (activeWallet.chainId !== numericChainId) {
+      if (requiredWallet.chainId !== numericChainId) {
         const store = useWeb3Store.getState();
         store.updateWalletChainId(WalletType.REOWN_EVM, numericChainId);
       }
     }
-  }, [evmNetwork.chainId, isEvmConnected, activeWallet]);
-
-  useEffect(() => {
-    if (solanaAccount.isConnected && solanaNetwork.chainId !== undefined) {
-      const store = useWeb3Store.getState();
-      const activeWallet = store.activeWallet;
-
-      if (activeWallet?.type === WalletType.REOWN_SOL) {
-        // Map of known Solana network IDs
-        const solanaNetworkMap: Record<string, number> = {
-          "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": 101, // Mainnet
-          // Add other Solana networks (testnet, devnet) as needed
-        };
-
-        // Handle Solana's string-based chain IDs properly
-        let mappedChainId: number;
-
-        if (typeof solanaNetwork.chainId === "string") {
-          // Try to get from our mapping, fallback to 101 (mainnet) if unknown
-          mappedChainId = solanaNetworkMap[solanaNetwork.chainId] || 101;
-          console.log(
-            `Mapped Solana chainId "${solanaNetwork.chainId}" to ${mappedChainId}`,
-          );
-        } else {
-          // If it's already a number, use it directly
-          mappedChainId = solanaNetwork.chainId;
-        }
-
-        // Only update if different from current chain ID
-        if (activeWallet.chainId !== mappedChainId) {
-          store.updateWalletChainId(WalletType.REOWN_SOL, mappedChainId);
-          console.log(`Solana chain updated to ${mappedChainId}`);
-        }
-      }
-    }
-  }, [solanaNetwork.chainId, solanaAccount.isConnected]);
-
-  // Handle Sui wallet state - there's no chain switching for Sui yet,
-  // but we should make sure the chainId is set properly in the store
-  useEffect(() => {
-    if (suiConnected && activeWallet?.type === WalletType.SUIET_SUI) {
-      // For now, we assume chainId 1 (Sui mainnet)
-      // In the future, this would need to detect the actual network
-      const suiChainId = 1;
-      if (activeWallet.chainId !== suiChainId) {
-        const store = useWeb3Store.getState();
-        store.updateWalletChainId(WalletType.SUIET_SUI, suiChainId);
-        console.log(`Sui chain updated to ${suiChainId}`);
-      }
-    }
-  }, [suiConnected, activeWallet]);
+  }, [evmNetwork.chainId, isEvmConnected, requiredWallet]);
 
   useEffect(() => {
     if (chainSwitchError) {
@@ -228,14 +148,7 @@ export function SwapInterface({
       const isWalletTypeCorrect = ensureCorrectWalletTypeForChain(sourceChain);
 
       if (!isWalletTypeCorrect) {
-        let requiredWalletType;
-        if (sourceRequiresSolana) {
-          requiredWalletType = "Solana";
-        } else if (sourceRequiresSui) {
-          requiredWalletType = "Sui";
-        } else {
-          requiredWalletType = "Ethereum";
-        }
+        const requiredWalletType = sourceChain.walletType;
 
         toast.error(`${requiredWalletType} wallet required`, {
           description: `Please connect a ${requiredWalletType} wallet to continue`,
@@ -244,7 +157,7 @@ export function SwapInterface({
       }
 
       // Special handling for Sui - no chain switching yet
-      if (activeWallet?.type === WalletType.SUIET_SUI) {
+      if (requiredWallet?.type === WalletType.SUIET_SUI) {
         // For Sui, we just check if we're connected
         if (!suiConnected) {
           toast.error("Sui wallet not connected", {
@@ -264,7 +177,7 @@ export function SwapInterface({
       // Then check if we're on the correct chain for EVM and Solana
       const isOnCorrectChain = await checkCurrentChain();
 
-      if (activeWallet && !isOnCorrectChain) {
+      if (requiredWallet && !isOnCorrectChain) {
         const toastId = toast.loading(
           `Switching to ${sourceChain.name} network...`,
           {

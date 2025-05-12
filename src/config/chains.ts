@@ -1,5 +1,5 @@
 // src/config/chains.ts
-import { Chain, Network } from "@/types/web3";
+import { Chain, Network, WalletType } from "@/types/web3";
 
 export const chains: Record<string, Chain> = {
   ethereum: {
@@ -20,6 +20,7 @@ export const chains: Record<string, Chain> = {
     l2: false,
     gasDrop: 0.05,
     nativeAddress: "0x0000000000000000000000000000000000000000",
+    walletType: WalletType.REOWN_EVM,
   },
   arbitrum: {
     id: "arbitrum",
@@ -39,6 +40,7 @@ export const chains: Record<string, Chain> = {
     l2: true,
     gasDrop: 0.01,
     nativeAddress: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+    walletType: WalletType.REOWN_EVM,
   },
   optimism: {
     id: "optimism",
@@ -58,6 +60,7 @@ export const chains: Record<string, Chain> = {
     l2: true,
     gasDrop: 0.01,
     nativeAddress: "0x4200000000000000000000000000000000000042",
+    walletType: WalletType.REOWN_EVM,
   },
   base: {
     id: "base",
@@ -77,6 +80,7 @@ export const chains: Record<string, Chain> = {
     l2: true,
     gasDrop: 0.01,
     nativeAddress: "0x4200000000000000000000000000000000000006",
+    walletType: WalletType.REOWN_EVM,
   },
   unichain: {
     id: "unichain",
@@ -96,6 +100,7 @@ export const chains: Record<string, Chain> = {
     l2: true,
     gasDrop: 0.01,
     nativeAddress: "0x4200000000000000000000000000000000000006",
+    walletType: WalletType.REOWN_EVM,
   },
   sui: {
     id: "sui",
@@ -110,10 +115,11 @@ export const chains: Record<string, Chain> = {
     fontColor: "#FAFAFA",
     rpcUrl: "https://sui-mainnet-endpoint.blockvision.org",
     explorerUrl: "https://suiscan.xyz/mainnet/home",
-    chainId: 1,
+    chainId: 0, // Sui does not have a chainId
     decimals: 9,
     l2: false,
     gasDrop: 0.01,
+    walletType: WalletType.SUIET_SUI,
   },
   polygon: {
     id: "polygon",
@@ -133,6 +139,7 @@ export const chains: Record<string, Chain> = {
     l2: false,
     gasDrop: 0.2,
     nativeAddress: "0x0000000000000000000000000000000000001010",
+    walletType: WalletType.REOWN_EVM,
   },
   "binance-smart-chain": {
     id: "binance-smart-chain",
@@ -152,6 +159,7 @@ export const chains: Record<string, Chain> = {
     l2: false,
     gasDrop: 0.02,
     nativeAddress: "0x0000000000000000000000000000000000000000",
+    walletType: WalletType.REOWN_EVM,
   },
   avalanche: {
     id: "avalanche",
@@ -171,6 +179,7 @@ export const chains: Record<string, Chain> = {
     l2: false,
     gasDrop: 0.1,
     nativeAddress: "0x0000000000000000000000000000000000000000",
+    walletType: WalletType.REOWN_EVM,
   },
   solana: {
     id: "solana",
@@ -189,6 +198,7 @@ export const chains: Record<string, Chain> = {
     decimals: 9,
     gasDrop: 0.01,
     l2: false,
+    walletType: WalletType.REOWN_SOL,
   },
 };
 

@@ -13,9 +13,12 @@ import { getPricesAndBalances } from "@/utils/tokenApiMethods";
 const TokenInitializer: React.FC = () => {
   // Use separate selectors to avoid object reference changes
   const tokenCount = useWeb3Store((state) => state.allTokensList.length);
+  const connectedWallets = useWeb3Store((state) => state.connectedWallets);
   const sourceChain = useWeb3Store((state) => state.sourceChain);
   const destinationChain = useWeb3Store((state) => state.destinationChain);
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletBySourceChain(),
+  );
   const destinationToken = useWeb3Store((state) => state.destinationToken);
   const sourceToken = useWeb3Store((state) => state.sourceToken);
 
@@ -56,7 +59,8 @@ const TokenInitializer: React.FC = () => {
     sourceChain,
     destinationChain,
     tokenCount,
-    activeWallet,
+    requiredWallet,
+    connectedWallets,
     isIdle,
     destinationToken,
     sourceToken,

@@ -65,12 +65,12 @@ export type Chain = {
   l2: boolean;
   gasDrop: number;
   nativeAddress?: string;
+  walletType: WalletType;
 };
 
 export interface Web3StoreState {
   // Wallet-related state
   connectedWallets: Array<Omit<WalletInfo, "provider">>;
-  activeWallet: Omit<WalletInfo, "provider"> | null;
 
   // Chain selection state
   sourceChain: Chain;
@@ -101,7 +101,6 @@ export interface Web3StoreState {
   // Wallet actions
   addWallet: (wallet: WalletInfo) => void;
   removeWallet: (walletType: WalletType) => void;
-  setActiveWallet: (walletType: WalletType) => void;
   updateWalletAddress: (walletType: WalletType, address: string) => void;
   updateWalletChainId: (walletType: WalletType, chainId: number) => void;
   disconnectAll: () => void;
@@ -114,7 +113,6 @@ export interface Web3StoreState {
   // Token selection actions - new additions
   setSourceToken: (token: Token | null) => void;
   setDestinationToken: (token: Token | null) => void;
-  swapTokens: () => void;
   addCustomToken: (token: Token) => void;
 
   // Token data actions
@@ -137,6 +135,8 @@ export interface Web3StoreState {
   getWalletsOfType: (walletType: WalletType) => WalletInfo[];
   isWalletTypeConnected: (walletType: WalletType) => boolean;
   getWalletByType: (walletType: WalletType) => WalletInfo | null;
+  getWalletBySourceChain: () => WalletInfo | null;
+  getWalletByDestinationChain: () => WalletInfo | null;
 }
 
 export enum Network {
@@ -311,4 +311,26 @@ export interface SolanaSigner {
     transactions: (Transaction | VersionedTransaction)[],
   ) => Promise<(Transaction | VersionedTransaction)[]>;
   signMessage?: (message: Uint8Array) => Promise<{ signature: Uint8Array }>;
+}
+
+export interface SolanaTokenBalance {
+  pubkey: string;
+  mint: string;
+  owner: string;
+  amount: string;
+  decimals: number;
+  uiAmount: number;
+  uiAmountString: string;
+  isNative?: boolean;
+}
+
+// Extended TokenBalance for Solana compatibility
+export interface EnhancedTokenBalance extends TokenBalance {
+  decimals?: number;
+  uiAmount?: number;
+  uiAmountString?: string;
+  pubkey?: string;
+  owner?: string;
+  isNative?: boolean;
+  rawAmount?: string;
 }

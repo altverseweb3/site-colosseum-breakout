@@ -18,7 +18,6 @@ const useWeb3Store = create<Web3StoreState>()(
   persist(
     (set, get) => ({
       connectedWallets: [],
-      activeWallet: null,
 
       // Chain selection state
       sourceChain: defaultSourceChain,
@@ -110,11 +109,8 @@ const useWeb3Store = create<Web3StoreState>()(
             newWallets = [...state.connectedWallets, walletForStorage];
           }
 
-          // IMPORTANT: Always set the newly connected wallet as active
-          // This ensures the most recently connected wallet becomes the active one
           return {
             connectedWallets: newWallets,
-            activeWallet: walletForStorage,
           };
         });
       },
@@ -125,29 +121,9 @@ const useWeb3Store = create<Web3StoreState>()(
             (w) => w.type !== walletType,
           );
 
-          // Determine new active wallet if the removed one was active
-          let newActiveWallet = state.activeWallet;
-          if (state.activeWallet?.type === walletType) {
-            newActiveWallet =
-              updatedWallets.length > 0 ? updatedWallets[0] : null;
-          }
-
           return {
             connectedWallets: updatedWallets,
-            activeWallet: newActiveWallet,
           };
-        });
-      },
-
-      setActiveWallet: (walletType: WalletType) => {
-        set((state) => {
-          // Find the wallet with the specified type
-          const targetWallet = state.connectedWallets.find(
-            (w) => w.type === walletType,
-          );
-
-          // Only update if we found the target wallet
-          return targetWallet ? { activeWallet: targetWallet } : state;
         });
       },
 
@@ -156,10 +132,6 @@ const useWeb3Store = create<Web3StoreState>()(
           connectedWallets: state.connectedWallets.map((wallet) =>
             wallet.type === walletType ? { ...wallet, address } : wallet,
           ),
-          activeWallet:
-            state.activeWallet?.type === walletType
-              ? { ...state.activeWallet, address }
-              : state.activeWallet,
         }));
       },
 
@@ -168,23 +140,42 @@ const useWeb3Store = create<Web3StoreState>()(
           connectedWallets: state.connectedWallets.map((wallet) =>
             wallet.type === walletType ? { ...wallet, chainId } : wallet,
           ),
-          activeWallet:
-            state.activeWallet?.type === walletType
-              ? { ...state.activeWallet, chainId }
-              : state.activeWallet,
         }));
       },
 
       disconnectAll: () => {
         set({
           connectedWallets: [],
-          activeWallet: null,
         });
       },
 
       // New method to get all wallets of a specific type
-      getWalletsOfType: (walletType: WalletType): WalletInfo[] => {
-        return get().connectedWallets.filter((w) => w.type === walletType);
+      getWalletsOfType: (walletType?: WalletType): WalletInfo[] => {
+        const wallets = get().connectedWallets;
+        // If walletType is undefined, return all wallets
+        if (walletType === undefined) {
+          return wallets;
+        }
+        // Otherwise, filter by the specified wallet type
+        return wallets.filter((w) => w.type === walletType);
+      },
+
+      getWalletBySourceChain: () => {
+        const sourceChainWalletType = get().sourceChain.walletType;
+        return (
+          get().connectedWallets.find(
+            (w) => w.type === sourceChainWalletType,
+          ) || null
+        );
+      },
+
+      getWalletByDestinationChain: () => {
+        const destinationChainWalletType = get().destinationChain.walletType;
+        return (
+          get().connectedWallets.find(
+            (w) => w.type === destinationChainWalletType,
+          ) || null
+        );
       },
 
       // New method to check if a specific wallet type is connected
@@ -202,30 +193,11 @@ const useWeb3Store = create<Web3StoreState>()(
       // Chain selection actions
       setSourceChain: (chain: Chain) => {
         set((state) => {
-          // Check if the chain requires a different wallet type
-          const isSolanaChain = chain.mayanName.includes("solana");
-          const neededWalletType = isSolanaChain
-            ? WalletType.REOWN_SOL
-            : WalletType.REOWN_EVM;
-
-          // Find a wallet of the needed type if available
-          const compatibleWallet = state.connectedWallets.find(
-            (w) => w.type === neededWalletType,
-          );
-
-          // Update active wallet if needed and available
-          const newActiveWallet =
-            compatibleWallet && state.activeWallet?.type !== neededWalletType
-              ? compatibleWallet
-              : state.activeWallet;
-
           return {
             sourceChain: chain,
             destinationChain: state.destinationChain,
             // Reset source token when changing chains
             sourceToken: null,
-            // Update active wallet if needed
-            activeWallet: newActiveWallet,
           };
         });
       },
@@ -255,31 +227,11 @@ const useWeb3Store = create<Web3StoreState>()(
               }
             : null;
 
-          // Check if the new source chain requires a different wallet type
-          const newSourceChain = state.destinationChain;
-          const isSolanaChain = newSourceChain.mayanName.includes("solana");
-          const neededWalletType = isSolanaChain
-            ? WalletType.REOWN_SOL
-            : WalletType.REOWN_EVM;
-
-          // Find a wallet of the needed type if available
-          const compatibleWallet = state.connectedWallets.find(
-            (w) => w.type === neededWalletType,
-          );
-
-          // Update active wallet if needed and available
-          const newActiveWallet =
-            compatibleWallet && state.activeWallet?.type !== neededWalletType
-              ? compatibleWallet
-              : state.activeWallet;
-
           return {
             sourceChain: state.destinationChain,
             destinationChain: state.sourceChain,
             sourceToken: newSourceToken,
             destinationToken: newDestinationToken,
-            // Update active wallet if needed
-            activeWallet: newActiveWallet,
           };
         });
       },
@@ -377,19 +329,6 @@ const useWeb3Store = create<Web3StoreState>()(
             tokensByAddress: updatedByAddress,
           };
         });
-      },
-      swapTokens: () => {
-        const state = get();
-        console.log(
-          "Swapping tokens:",
-          state.sourceToken ? state.sourceToken.name : "null",
-          "<->",
-          state.destinationToken ? state.destinationToken.name : "null",
-        );
-        set((state) => ({
-          sourceToken: state.destinationToken,
-          destinationToken: state.sourceToken,
-        }));
       },
 
       loadTokens: async () => {
@@ -717,14 +656,6 @@ const useWeb3Store = create<Web3StoreState>()(
             address: wallet.address,
             chainId: wallet.chainId,
           })),
-          activeWallet: state.activeWallet
-            ? {
-                type: state.activeWallet.type,
-                name: state.activeWallet.name,
-                address: state.activeWallet.address,
-                chainId: state.activeWallet.chainId,
-              }
-            : null,
           sourceChain: state.sourceChain,
           destinationChain: state.destinationChain,
           transactionDetails: state.transactionDetails,
@@ -776,10 +707,6 @@ const updateTokenCollections = (
     tokensByChainId: byChainId,
     tokensByAddress: byChainIdAndAddress,
   };
-};
-
-export const useCurrentChainId = (): number | null => {
-  return useWeb3Store((state) => state.activeWallet?.chainId ?? null);
 };
 
 export const useSourceChain = (): Chain => {

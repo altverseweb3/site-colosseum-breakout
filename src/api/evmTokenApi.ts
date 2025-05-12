@@ -5,6 +5,7 @@ import {
   TokenBalance,
   TokenMetadata,
   TokenPriceResult,
+  SolanaTokenBalance,
 } from "@/types/web3";
 
 // Unified API Response type
@@ -73,6 +74,14 @@ export class EvmTokenAPI {
     return this.request<TokenBalance[]>("POST", "balances", request);
   }
 
+  /**
+   * Fetch token balances for a given address
+   */
+  public async getSplBalances(
+    request: BalancesRequest,
+  ): Promise<ApiResponse<SolanaTokenBalance[]>> {
+    return this.request<SolanaTokenBalance[]>("POST", "spl-balances", request);
+  }
   /**
    * Check token allowance for a given user/spender pair
    */
