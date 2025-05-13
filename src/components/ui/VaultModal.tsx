@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, CheckCircle2 } from "lucide-react";
 import * as ethers from "ethers";
 import {
   Dialog,
@@ -181,6 +181,9 @@ export const VaultModal = ({
   // State for loading and error messages
   const [isDepositLoading, setIsDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
+  const [isApprovalLoading, setIsApprovalLoading] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   // Get global web3 state
   const { activeWallet } = useWeb3Store();
@@ -201,7 +204,75 @@ export const VaultModal = ({
     }
   };
 
+  // Effect to reset approval status when vault, token, or amount changes
+  useEffect(() => {
+    setIsApproved(false);
+    setApprovalError(null);
+  }, [vault, selectedAsset, amount]);
+
   if (!vault) return null;
+
+  // Define the approval handler function
+  async function handleApproveToken() {
+    // Skip during SSR
+    if (typeof window === "undefined") return;
+
+    // Get web3 provider
+    const provider = getWeb3Provider();
+
+    // Validation checks
+    if (!provider || !activeWallet) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      setApprovalError("Please enter a valid amount");
+      return;
+    }
+
+    // Start approval process
+    setIsApprovalLoading(true);
+    setApprovalError(null);
+
+    try {
+      // Import approval function dynamically
+      const { approveTokenForVault } = await import(
+        "@/utils/approveTokenForVault"
+      );
+
+      // Log approval attempt
+      console.log("Attempting token approval:", {
+        provider: "BrowserProvider",
+        walletAddress: activeWallet.address,
+        token: selectedAsset.id,
+        vaultId: vault?.id,
+        amount: amount,
+      });
+
+      // Execute approval with selected token and vault
+      const result = await approveTokenForVault(
+        provider,
+        selectedAsset.id,
+        vault?.id ?? 0,
+        amount,
+      );
+
+      if (result.success) {
+        setIsApproved(true);
+        console.log(`Approval successful: ${result.message}`);
+      } else {
+        setApprovalError(result.message);
+      }
+    } catch (error) {
+      console.error("Approval error:", error);
+      setApprovalError(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    } finally {
+      setIsApprovalLoading(false);
+    }
+  }
 
   // Define the deposit handler function
   async function handleDepositConfirm() {
@@ -521,35 +592,81 @@ export const VaultModal = ({
                     </div>
                   </div>
 
-                  {/* Error message */}
+                  {/* Approval Error message */}
+                  {approvalError && (
+                    <div className="text-red-400 text-sm mb-4">
+                      {approvalError}
+                    </div>
+                  )}
+
+                  {/* Deposit Error message */}
                   {depositError && (
                     <div className="text-red-400 text-sm mb-4">
                       {depositError}
                     </div>
                   )}
 
-                  {/* Deposit Button */}
-                  <Button
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-black font-medium"
-                    onClick={handleDepositConfirm}
-                    disabled={
-                      !amount ||
-                      parseFloat(amount) <= 0 ||
-                      isDepositLoading ||
-                      !activeWallet
-                    }
-                  >
-                    {isDepositLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : !activeWallet ? (
-                      "Connect Wallet to Deposit"
-                    ) : (
-                      "Confirm Deposit"
+                  {/* Approval Success message */}
+                  {isApproved && !approvalError && (
+                    <div className="flex items-center text-green-500 text-sm mb-4">
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      {selectedAsset.name} approved for deposit
+                    </div>
+                  )}
+
+                  {/* Approval and Deposit Buttons */}
+                  <div className="space-y-3">
+                    {/* Approval Button (shown if not approved yet) */}
+                    {!isApproved && (
+                      <Button
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                        onClick={handleApproveToken}
+                        disabled={
+                          !amount ||
+                          parseFloat(amount) <= 0 ||
+                          isApprovalLoading ||
+                          !activeWallet
+                        }
+                      >
+                        {isApprovalLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Approving...
+                          </>
+                        ) : !activeWallet ? (
+                          "Connect Wallet to Approve"
+                        ) : (
+                          `Approve ${selectedAsset.name}`
+                        )}
+                      </Button>
                     )}
-                  </Button>
+
+                    {/* Deposit Button */}
+                    <Button
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-black font-medium"
+                      onClick={handleDepositConfirm}
+                      disabled={
+                        !amount ||
+                        parseFloat(amount) <= 0 ||
+                        isDepositLoading ||
+                        !isApproved ||
+                        !activeWallet
+                      }
+                    >
+                      {isDepositLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : !activeWallet ? (
+                        "Connect Wallet to Deposit"
+                      ) : !isApproved ? (
+                        "Approve First"
+                      ) : (
+                        "Confirm Deposit"
+                      )}
+                    </Button>
+                  </div>
                 </>
               )}
             </div>

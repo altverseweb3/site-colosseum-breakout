@@ -1,6 +1,11 @@
 // src/utils/vaultDepositHelper.ts
 import * as ethers from "ethers";
-import { VAULT_ID_TO_TELLER } from "./mapping";
+import { VAULT_ID_TO_TELLER, VAULT_ID_TO_ADDRESS } from "./mapping";
+import {
+  getOptimizedGasSettings,
+  TransactionType,
+  TransactionUrgency,
+} from "./gasStrategy";
 
 // Token addresses (Ethereum mainnet)
 export const TOKEN_ADDRESSES: Record<string, string> = {
@@ -141,11 +146,13 @@ export async function depositToVaultSimple(
     const tokenAddress = TOKEN_ADDRESSES[tokenId];
     const tellerAddress =
       VAULT_ID_TO_TELLER[vaultId as keyof typeof VAULT_ID_TO_TELLER];
+    const vaultAddress =
+      VAULT_ID_TO_ADDRESS[vaultId as keyof typeof VAULT_ID_TO_ADDRESS];
     const decimals = TOKEN_DECIMALS[tokenId] || 18;
     const depositAmount = ethers.parseUnits(amount, decimals);
 
     console.log(
-      `Using addresses - token:${tokenAddress}, teller:${tellerAddress}`,
+      `Using addresses - token:${tokenAddress}, teller:${tellerAddress}, vault:${vaultAddress}`,
     );
 
     // Create contract instances
@@ -169,69 +176,55 @@ export async function depositToVaultSimple(
       };
     }
 
-    // Check allowance
+    // Check allowance (check against vault address, not teller)
     const allowance = await tokenContract.allowance(
       signerAddress,
-      tellerAddress,
+      vaultAddress,
     );
     console.log(
       `Current allowance: ${ethers.formatUnits(allowance, decimals)} ${tokenId}`,
     );
 
-    // If allowance is not enough, approve tokens
+    // If allowance is not enough, approval needs to be done separately
+    // This function should not handle approvals anymore since we use a separate approval button
     if (allowance < depositAmount) {
-      console.log("Resetting allowance to zero first...");
-      try {
-        // First set allowance to 0
-        const resetTx = await tokenContract.approve(tellerAddress, 0, {
-          gasLimit: 100000,
-        });
-        await resetTx.wait();
-        console.log("Allowance reset to zero");
-
-        // Wait briefly
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } catch (error) {
-        console.log("Error resetting allowance, continuing anyway:", error);
-      }
-
-      // Now set unlimited approval
-      console.log("Setting unlimited approval...");
-      const approveTx = await tokenContract.approve(
-        tellerAddress,
-        ethers.MaxUint256,
-        { gasLimit: 100000 },
-      );
-      console.log(`Approval transaction sent with hash: ${approveTx.hash}`);
-      const approveReceipt = await approveTx.wait();
-      console.log(`Approval confirmed in block ${approveReceipt.blockNumber}`);
-
-      // Verify allowance after approval
-      const newAllowance = await tokenContract.allowance(
-        signerAddress,
-        tellerAddress,
-      );
-      console.log(
-        `New allowance after approval: ${ethers.formatUnits(newAllowance, decimals)} ${tokenId}`,
-      );
-
-      // Wait a bit to ensure the approval is fully recognized
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      return {
+        success: false,
+        message: `Insufficient allowance. Please approve ${tokenId.toUpperCase()} first.`,
+      };
     }
+
+    console.log(`Sufficient allowance verified for the vault ${vaultId}`);
 
     // Try to execute deposit with maximum gas limit and very basic parameters
     console.log(
       `Executing deposit with amount: ${ethers.formatUnits(depositAmount, decimals)} ${tokenId}...`,
     );
 
-    // Using a simple transaction with higher gas
+    // Get optimized gas settings for deposit (using high urgency for more reliable deposits)
+    const gasSettings = await getOptimizedGasSettings(
+      provider,
+      TransactionType.DEPOSIT,
+      TransactionUrgency.HIGH,
+    );
+
+    // Log detailed information just before the transaction
+    console.log(`DETAILED DEPOSIT INFO:`, {
+      tokenId,
+      vaultId,
+      tokenContractAddress: tokenAddress,
+      tellerContractAddress: tellerAddress,
+      depositAmount: depositAmount.toString(),
+      formattedAmount: ethers.formatUnits(depositAmount, decimals),
+      signerAddress: signerAddress,
+    });
+
+    // Using optimized gas settings
     const tx = await tellerContract.deposit(
-      tokenAddress,
+      tokenAddress, // This is correct - tokenAddress is the first parameter for the teller's deposit function
       depositAmount,
       0, // min mint
-      {
-        gasLimit: 700000, // Very high gas limit to ensure it has enough gas
-      },
+      gasSettings,
     );
 
     console.log(`Deposit transaction sent with hash: ${tx.hash}`);
@@ -327,6 +320,20 @@ export async function depositToVault(
     const signer = await provider.getSigner();
     const signerAddress = await signer.getAddress();
 
+    // Get vault address for approval check
+    const vaultAddress =
+      VAULT_ID_TO_ADDRESS[vaultId as keyof typeof VAULT_ID_TO_ADDRESS];
+    if (!vaultAddress) {
+      return {
+        success: false,
+        message: `Vault address not found for ID ${vaultId}`,
+      };
+    }
+
+    console.log(
+      `Using addresses - token:${tokenAddress}, teller:${tellerAddress}, vault:${vaultAddress}`,
+    );
+
     // Create contract instances
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
     const tellerContract = new ethers.Contract(
@@ -344,112 +351,28 @@ export async function depositToVault(
       };
     }
 
-    // Check allowance
+    // Check allowance against the vault address (not the teller)
     const allowance = await tokenContract.allowance(
       signerAddress,
-      tellerAddress,
+      vaultAddress,
     );
 
-    // If allowance is not enough, approve tokens
+    console.log(
+      `Current allowance for vault: ${ethers.formatUnits(allowance, decimals)} ${tokenId.toUpperCase()}`,
+    );
+
+    // If allowance is not enough, return an error message
     if (allowance < depositAmount) {
-      // Get latest gas price data from the network to avoid stuck transactions
-      const approvalFeeData = await signer.provider.getFeeData();
-
-      // Use higher gas settings to ensure approval succeeds
-      // Apply higher multiplier to network values to ensure transaction goes through
-      const maxFeePerGas = approvalFeeData.maxFeePerGas
-        ? // Convert to number, add 50%, then convert back to BigInt (using Math.floor to avoid decimals)
-          ethers.toBigInt(
-            Math.floor(
-              Number(ethers.formatUnits(approvalFeeData.maxFeePerGas, "wei")) *
-                1.5,
-            ),
-          )
-        : ethers.parseUnits("20", "gwei"); // Higher fallback
-
-      const maxPriorityFeePerGas = approvalFeeData.maxPriorityFeePerGas
-        ? // Add 50% to priority fee for faster inclusion
-          ethers.toBigInt(
-            Math.floor(
-              Number(
-                ethers.formatUnits(approvalFeeData.maxPriorityFeePerGas, "wei"),
-              ) * 1.5,
-            ),
-          )
-        : ethers.parseUnits("2", "gwei"); // Higher fallback
-
-      // Use higher gas limit to ensure approval success
-      const approvalGasLimit = 120000; // Higher gas limit for approval
-
-      console.log(`Approving token spend with optimized EIP-1559 parameters:`, {
-        tellerAddress,
-        maxFeePerGas: ethers.formatUnits(maxFeePerGas, "gwei"),
-        maxPriorityFeePerGas: ethers.formatUnits(maxPriorityFeePerGas, "gwei"),
-        gasLimit: approvalGasLimit,
-      });
-
-      // IMPORTANT: For some ERC20 tokens, we must set allowance to 0 first
-      // to avoid the ERC20 allowance race condition
-      if (allowance > BigInt(0)) {
-        console.log(
-          `Resetting existing allowance of ${ethers.formatUnits(allowance, decimals)} to zero first`,
-        );
-
-        try {
-          const resetTx = await tokenContract.approve(
-            tellerAddress,
-            BigInt(0),
-            {
-              gasLimit: approvalGasLimit,
-              maxFeePerGas: maxFeePerGas,
-              maxPriorityFeePerGas: maxPriorityFeePerGas,
-              type: 2,
-            },
-          );
-
-          console.log(
-            `Reset approval transaction sent with hash: ${resetTx.hash}`,
-          );
-
-          // Wait for reset approval to confirm
-          const resetReceipt = await resetTx.wait();
-          console.log(
-            `Reset approval confirmed in block ${resetReceipt.blockNumber}`,
-          );
-
-          // Add a small delay after resetting
-          await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
-        } catch (error) {
-          console.error("Error resetting allowance:", error);
-          // Continue anyway, since not all tokens require this step
-        }
-      }
-
-      // Use unlimited approval like in the working script
-      console.log(
-        `Approving max amount (unlimited) for ${tokenId.toUpperCase()}`,
-      );
-
-      const approveTx = await tokenContract.approve(
-        tellerAddress,
-        ethers.MaxUint256, // Use unlimited approval like the working script
-        {
-          gasLimit: 150000, // Higher gas limit for approval
-          maxFeePerGas: maxFeePerGas,
-          maxPriorityFeePerGas: maxPriorityFeePerGas,
-          type: 2, // Explicitly set transaction type to EIP-1559
-        },
-      );
-
-      console.log(`Approval transaction sent with hash: ${approveTx.hash}`);
-
-      // Wait for approval to confirm
-      const approveReceipt = await approveTx.wait();
-      console.log(`Approval confirmed in block ${approveReceipt.blockNumber}`);
-
-      // Add a small delay to ensure the approval has time to be processed
-      await new Promise((resolve) => setTimeout(resolve, 3000)); // 3 second delay
+      return {
+        success: false,
+        message: `Insufficient allowance. Please approve ${tokenId.toUpperCase()} for the vault first.`,
+      };
     }
+
+    console.log(`Sufficient allowance verified for vault ${vaultId}`);
+
+    // Small delay to ensure chain state is consistent
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Log transaction details before executing
     console.log(`Deposit details:`, {
@@ -469,41 +392,12 @@ export async function depositToVault(
       vaultId,
     });
 
-    // Get latest gas price data from the network to avoid stuck transactions
-    const depositFeeData = await signer.provider.getFeeData();
-
-    // Use higher gas settings - prioritize transaction success over cost
-    // Apply higher multiplier to network values to ensure transaction goes through
-    const maxFeePerGas = depositFeeData.maxFeePerGas
-      ? // Convert to number, add 50%, then convert back to BigInt (using Math.floor to avoid decimals)
-        ethers.toBigInt(
-          Math.floor(
-            Number(ethers.formatUnits(depositFeeData.maxFeePerGas, "wei")) *
-              1.5,
-          ),
-        )
-      : ethers.parseUnits("20", "gwei"); // Higher fallback
-
-    const maxPriorityFeePerGas = depositFeeData.maxPriorityFeePerGas
-      ? // Add 50% to priority fee for faster inclusion
-        ethers.toBigInt(
-          Math.floor(
-            Number(
-              ethers.formatUnits(depositFeeData.maxPriorityFeePerGas, "wei"),
-            ) * 1.5,
-          ),
-        )
-      : ethers.parseUnits("2", "gwei"); // Higher fallback
-
-    // Use higher gas limit to ensure transaction success
-    const gasLimit = 600000; // Higher gas limit to ensure transaction success
-
-    console.log(`Using optimized EIP-1559 parameters for deposit:`, {
-      maxFeePerGas: ethers.formatUnits(maxFeePerGas, "gwei"),
-      maxPriorityFeePerGas: ethers.formatUnits(maxPriorityFeePerGas, "gwei"),
-      gasLimit: gasLimit,
-      estimatedCost: `~$${(Number(ethers.formatUnits(maxFeePerGas, "gwei")) * gasLimit * 0.000000001 * 2500).toFixed(2)}`,
-    });
+    // Get optimized gas settings for deposit transaction
+    const gasSettings = await getOptimizedGasSettings(
+      provider,
+      TransactionType.DEPOSIT,
+      TransactionUrgency.MEDIUM, // Use medium urgency for regular deposits
+    );
 
     // Debug log
     console.log(`Exact deposit details:`, {
@@ -513,10 +407,10 @@ export async function depositToVault(
       tokenId,
     });
 
-    // Check allowance one more time right before deposit
+    // Double-check allowance one more time right before deposit
     const finalAllowance = await tokenContract.allowance(
       signerAddress,
-      tellerAddress,
+      vaultAddress,
     );
     console.log(
       `Final allowance check before deposit: ${ethers.formatUnits(finalAllowance, decimals)} ${tokenId.toUpperCase()}`,
@@ -528,7 +422,7 @@ export async function depositToVault(
       );
       return {
         success: false,
-        message: "Allowance issue detected. Please try again in a moment.",
+        message: "Allowance issue detected. Please try approving again.",
       };
     }
 
@@ -545,17 +439,12 @@ export async function depositToVault(
       },
     );
 
-    // Use fixed high gas parameters like in the working script
+    // Use the optimized gas settings we obtained earlier
     const tx = await tellerContract.deposit(
       tokenAddress,
       depositAmount,
       0, // Min mint amount (0 = accept any amount)
-      {
-        gasLimit: 500000, // Fixed high value to match working script
-        maxFeePerGas: maxFeePerGas,
-        maxPriorityFeePerGas: maxPriorityFeePerGas,
-        type: 2, // Explicitly set transaction type to EIP-1559
-      },
+      gasSettings,
     );
 
     // Wait for receipt
