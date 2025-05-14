@@ -179,9 +179,12 @@ export async function getPricesAndBalancesForChain(
               `Found ${balanceData.length} token balances for ${userAddress} on ${chainType} chain.`,
             );
 
-            // Extract addresses with balance
-            addressesWithBalance = balanceData.map((balance) =>
-              balance.contractAddress.toLowerCase(),
+            // Extract addresses with balance - preserve case for Solana, lowercase for others
+            addressesWithBalance = balanceData.map(
+              (balance) =>
+                chain.id === "solana"
+                  ? balance.contractAddress // Keep original case for Solana
+                  : balance.contractAddress.toLowerCase(), // Lowercase for EVM chains
             );
           }
         }
@@ -198,13 +201,18 @@ export async function getPricesAndBalancesForChain(
     }
 
     // 3. Prepare Addresses for Price Fetching
-    // Get tokens with alwaysLoadPrice
+    // Get tokens with alwaysLoadPrice - preserve case for Solana, lowercase for others
     const alwaysLoadPriceAddresses = useWeb3Store
       .getState()
       .allTokensList.filter(
         (token) => token.chainId === chainId && token.alwaysLoadPrice,
       )
-      .map((token) => token.address.toLowerCase());
+      .map(
+        (token) =>
+          chain.id === "solana"
+            ? token.address // Keep original case for Solana
+            : token.address.toLowerCase(), // Lowercase for EVM chains
+      );
 
     // Combine and deduplicate addresses
     const uniqueAddresses = [
@@ -221,7 +229,7 @@ export async function getPricesAndBalancesForChain(
     const tokenAddressesForPriceFetch: TokenAddressInfo[] = uniqueAddresses.map(
       (address) => ({
         network: networkName,
-        address: address,
+        address: address, // This preserves the original case for Solana
       }),
     );
 
@@ -280,14 +288,33 @@ export async function getPricesAndBalancesForChain(
     if (userAddress && balanceData && balanceData.length > 0) {
       // Get potentially updated token info from the store (which now includes latest prices)
       const updatedTokens = useWeb3Store.getState().getTokensForChain(chainId);
+
+      // Create lookup mapping - for Solana, create both case-sensitive and case-insensitive lookups
       const tokensByAddress: Record<string, Token> = {};
       updatedTokens.forEach((token) => {
-        tokensByAddress[token.address.toLowerCase()] = token;
+        if (chain.id === "solana") {
+          // For Solana, keep both original case and lowercase for flexible lookup
+          tokensByAddress[token.address] = token;
+          tokensByAddress[token.address.toLowerCase()] = token;
+        } else {
+          // For EVM chains, use lowercase
+          tokensByAddress[token.address.toLowerCase()] = token;
+        }
       });
 
       const processedBalances = balanceData.map((balance) => {
-        const tokenAddress = balance.contractAddress.toLowerCase();
-        const token = tokensByAddress[tokenAddress]; // Get token info (includes price)
+        // For token lookup, try original case first, then lowercase as fallback
+        const tokenAddress =
+          chain.id === "solana"
+            ? balance.contractAddress
+            : balance.contractAddress.toLowerCase();
+
+        let token = tokensByAddress[tokenAddress];
+
+        // If not found and this is Solana, try the other case
+        if (!token && chain.id === "solana") {
+          token = tokensByAddress[balance.contractAddress.toLowerCase()];
+        }
 
         // Type guard to check if balance has Solana-specific properties
         const isSolanaBalance = (

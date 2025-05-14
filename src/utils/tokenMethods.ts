@@ -56,7 +56,9 @@ export const loadTokensForChain = async (
         icon: item.local_image,
         address:
           item.contract_address === "native"
-            ? "0x0000000000000000000000000000000000000000"
+            ? numericChainId === 101
+              ? "11111111111111111111111111111111"
+              : "0x0000000000000000000000000000000000000000"
             : item.contract_address,
         decimals:
           item.contract_address === "native" ? 18 : item.metadata.decimals,
