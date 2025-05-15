@@ -330,16 +330,16 @@ export const VaultModal = ({
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
   // Get global web3 state
-  const { activeWallet } = useWeb3Store();
+  const activeWallet = useWeb3Store(state => state.getWalletBySourceChain());
 
-  // Access web3Provider when needed
   const getWeb3Provider = () => {
     if (typeof window === "undefined") return null;
 
     try {
       // Check if window.ethereum is available
       if (window.ethereum) {
-        return new ethers.BrowserProvider(window.ethereum);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return new ethers.BrowserProvider(window.ethereum as any);
       }
       return null;
     } catch (error) {

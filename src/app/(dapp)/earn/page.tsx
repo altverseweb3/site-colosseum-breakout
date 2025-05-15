@@ -8,6 +8,7 @@ import VaultModal, { VaultDetails } from "@/components/ui/VaultModal";
 import { getVedaPoints, FormattedVedaPointsData } from "@/utils/vedapoints";
 import useWeb3Store from "@/store/web3Store";
 import { ExternalLink } from "lucide-react";
+import { useWalletConnection } from "@/utils/walletMethods"
 
 // Token SVG mapping with updated image paths from tokens folder
 const TOKEN_SVG_MAPPING: Record<string, string> = {
@@ -524,28 +525,24 @@ const EarnComponent: React.FC = () => {
 
 // PointsTab component displays Veda points data for the connected wallet
 const PointsTab: React.FC = () => {
-  const [pointsData, setPointsData] = useState<FormattedVedaPointsData | null>(
-    null,
-  );
-  const [isLoading, setIsLoading] = useState(false);
+  // Local state to hold fetched points data
+  const [pointsData, setPointsData] = useState<FormattedVedaPointsData | null>(null);
+  // Loading & error flags
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const activeWallet = useWeb3Store((state) => state.activeWallet);
 
-  // Function to handle wallet connection
-  const handleConnectWallet = async () => {
-    try {
-      // Import dynamically to avoid server-side errors
-      const { connectMetamask } = await import("@/utils/walletMethods");
-      await connectMetamask();
-    } catch (error) {
-      console.error("Error connecting wallet:", error);
-      setError("Failed to connect wallet. Please try again.");
-    }
-  };
+  // STEP 1: grab the “active” wallet out of your store
+  // getWalletBySourceChain() returns the currently‐selected WalletInfo or undefined
+  const activeWallet = useWeb3Store((state) => state.getWalletBySourceChain());
 
+  // STEP 2: pull connectWallet() out of your wallet‐connection hook
+  const { connectWallet } = useWalletConnection();
+
+  // Whenever the activeWallet changes, re‐fetch points
   useEffect(() => {
     async function fetchPoints() {
-      if (!activeWallet) {
+      // If we have no connected address, bail out with an error message
+      if (!activeWallet?.address) {
         setError("Please connect your wallet to view points");
         return;
       }
@@ -553,13 +550,13 @@ const PointsTab: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
-        // Use only the connected wallet address - no fallbacks
+        // Call your Veda‐points util with the connected address
         const data = await getVedaPoints(activeWallet.address);
         setPointsData(data);
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to load points data";
-        setError(errorMessage);
+        // Capture any error message
+        const message = err instanceof Error ? err.message : "Failed to load points data";
+        setError(message);
         console.error("Error fetching points data:", err);
       } finally {
         setIsLoading(false);
@@ -569,20 +566,26 @@ const PointsTab: React.FC = () => {
     fetchPoints();
   }, [activeWallet]);
 
-  // Function to get chain display name
+  /**
+   * Helper to convert chain keys (e.g. “ethereum”) into display names
+   */
   const getChainDisplayName = (name: string): string => {
     const displayNames: Record<string, string> = {
       ethereum: "Ethereum",
-      base: "Base",
-      sonic: "Sonic",
+      base:     "Base",
+      sonic:    "Sonic",
+      // …add more mappings here…
     };
+    // Fallback: capitalize first letter
     return displayNames[name] || name.charAt(0).toUpperCase() + name.slice(1);
   };
 
   return (
     <div className="w-[700px] bg-zinc-900 rounded-[6px] overflow-hidden">
       <div className="px-8 py-6">
-        {!activeWallet ? (
+
+        {/* === No wallet connected === */}
+        {!activeWallet?.address ? (
           <div className="flex flex-col items-center justify-center py-8">
             <div className="text-zinc-300 mb-4">
               Connect your wallet to view your Veda points
@@ -590,21 +593,25 @@ const PointsTab: React.FC = () => {
             <Button
               variant="outline"
               className="bg-amber-500 hover:bg-amber-600 text-black border-none"
-              onClick={handleConnectWallet}
+              onClick={() => connectWallet()}
             >
               Connect Wallet
             </Button>
           </div>
+
         ) : isLoading ? (
           <div className="flex justify-center py-8">
-            <div className="text-zinc-300">Loading points data...</div>
+            <div className="text-zinc-300">Loading points data…</div>
           </div>
+
         ) : error ? (
           <div className="flex justify-center py-8">
             <div className="text-red-400">{error}</div>
           </div>
+
         ) : pointsData ? (
-          <div>
+          <>
+            {/* Header with total points */}
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-medium text-zinc-100">
                 Your Veda Points
@@ -614,12 +621,10 @@ const PointsTab: React.FC = () => {
               </div>
             </div>
 
+            {/* Per‐chain breakdown */}
             <div className="space-y-6">
               {pointsData.chains.map((chain) => (
-                <div
-                  key={chain.name}
-                  className="border border-zinc-800 rounded-md"
-                >
+                <div key={chain.name} className="border border-zinc-800 rounded-md">
                   <div className="flex justify-between items-center p-4 border-b border-zinc-800 bg-zinc-800/50">
                     <div className="text-zinc-200 font-medium">
                       {getChainDisplayName(chain.name)}
@@ -635,15 +640,14 @@ const PointsTab: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Vault‐level points table, or “no points yet” message */}
                   {chain.vaults.length > 0 ? (
                     <div className="p-3">
                       <table className="w-full">
                         <thead>
                           <tr className="text-zinc-400 text-sm">
                             <th className="text-left p-2 font-normal">Vault</th>
-                            <th className="text-right p-2 font-normal">
-                              Points
-                            </th>
+                            <th className="text-right p-2 font-normal">Points</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -671,6 +675,7 @@ const PointsTab: React.FC = () => {
                 </div>
               ))}
 
+              {/* Fallback if there are zero chains in the data */}
               {pointsData.chains.length === 0 && (
                 <div className="text-center py-8 text-zinc-400">
                   No points data available. Start using vaults to earn points!
@@ -678,19 +683,19 @@ const PointsTab: React.FC = () => {
               )}
             </div>
 
+            {/* Footer: link out to Veda web app */}
             <div className="mt-6 text-center">
               <Button
                 variant="outline"
                 className="text-amber-500 border-amber-500 hover:bg-amber-500/10"
-                onClick={() =>
-                  window.open("https://app.veda.tech/points", "_blank")
-                }
+                onClick={() => window.open("https://app.veda.tech/points", "_blank")}
               >
                 View on Veda <ExternalLink className="h-4 w-4 ml-2" />
               </Button>
             </div>
-          </div>
+          </>
         ) : (
+          /* Last‐ditch fallback if pointsData is somehow null */
           <div className="flex justify-center py-8">
             <div className="text-zinc-300">No points data available</div>
           </div>
