@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import * as ethers from "ethers";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import VaultModal, { VaultDetails } from "@/components/ui/VaultModal";
 import { getVedaPoints, FormattedVedaPointsData } from "@/utils/vedapoints";
+import { checkAllVaultsDepositStatus } from "@/utils/checkifpaused";
 import useWeb3Store from "@/store/web3Store";
 import { ExternalLink } from "lucide-react";
 import { useWalletConnection } from "@/utils/walletMethods"
@@ -79,6 +81,8 @@ const EarnComponent: React.FC = () => {
   const [apyValues, setApyValues] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isApyLoading, setIsApyLoading] = useState(true);
+  const [vaultDepositStatus, setVaultDepositStatus] = useState<Record<number, boolean>>({});
+  const [isVaultStatusLoading, setIsVaultStatusLoading] = useState(true);
   const [selectedVault, setSelectedVault] = useState<VaultDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -144,6 +148,33 @@ const EarnComponent: React.FC = () => {
 
     // Call the function when component mounts
     fetchAPYData();
+  }, []);
+  
+  // Effect to check vault deposit status
+  useEffect(() => {
+    async function checkVaultStatus() {
+      try {
+        setIsVaultStatusLoading(true);
+        console.log("🔄 Checking vault deposit status...");
+
+        // Always use a public provider for status checks
+        const provider = new ethers.JsonRpcProvider("https://eth.llamarpc.com");
+
+        // Check all vaults' deposit status
+        const depositStatus = await checkAllVaultsDepositStatus(provider);
+        console.log("✅ Vault deposit status:", depositStatus);
+        setVaultDepositStatus(depositStatus);
+      } catch (error) {
+        console.error("Error checking vault deposit status:", error);
+        // Default to empty status object if there's an error
+        setVaultDepositStatus({});
+      } finally {
+        setIsVaultStatusLoading(false);
+      }
+    }
+
+    // Call the function when component mounts
+    checkVaultStatus();
   }, []);
 
   // Create an array of vaults with sample data
@@ -308,12 +339,23 @@ const EarnComponent: React.FC = () => {
       ? apyValues[vault.contractAddress]
       : null;
 
-    // Add TVL and real APY (if available) to the vault data
+    // Get deposit status for this vault
+    const isAcceptingDeposits = isVaultStatusLoading
+      ? true // Default to enabled while loading
+      : vault.id in vaultDepositStatus
+        ? vaultDepositStatus[vault.id]
+        : true; // Default to enabled if not in status map
+    
+    // For debugging
+    console.log(`Vault ${vault.id} (${vault.name}) deposit status:`, isAcceptingDeposits);
+
+    // Add TVL, APY and deposit status to the vault data
     const vaultWithData = {
       ...vault,
       tvl: isLoading ? "Loading..." : tvlValues[vault.id] || "N/A",
       hasRealAPY: !!realAPY,
       apy: isApyLoading ? "Loading..." : realAPY || "N/A",
+      isAcceptingDeposits: isAcceptingDeposits // Use on-chain status for all vaults including Liquid Move ETH
     };
     setSelectedVault(vaultWithData);
     setIsModalOpen(true);

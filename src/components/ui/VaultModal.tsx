@@ -164,6 +164,7 @@ export type VaultDetails = {
   explorerUrl?: string;
   analyticsUrl?: string;
   hasRealAPY?: boolean;
+  isAcceptingDeposits?: boolean;
 };
 
 export const VaultModal = ({
@@ -179,17 +180,29 @@ export const VaultModal = ({
   const [amount, setAmount] = useState<string>("");
 
   // Get available deposit tokens for this vault or use default tokens
-  const getVaultDepositOptions = (vaultName: string) => {
-    const vaultOptions = VAULT_DEPOSIT_OPTIONS[vaultName];
-    if (!vaultOptions) return { depositEnabled: true, tokens: [] };
-    return vaultOptions;
+  const getVaultDepositOptions = (vaultName: string, isAcceptingDeposits: boolean = true) => {
+    // Get the default options from the map
+    const defaultOptions = VAULT_DEPOSIT_OPTIONS[vaultName];
+    
+    // If the vault is not accepting deposits (from blockchain check), override the deposit status
+    if (isAcceptingDeposits === false) { // Explicitly check for false to handle undefined case
+      return {
+        depositEnabled: false,
+        tokens: defaultOptions?.tokens || [],
+        disabledMessage: "Deposits are currently disabled for this vault (paused).",
+      };
+    }
+    
+    // Otherwise return the default options or a fallback
+    if (!defaultOptions) return { depositEnabled: true, tokens: [] };
+    return defaultOptions;
   };
 
   // Get vault options with memoization
   const vaultOptions = useMemo(
     () =>
       vault
-        ? getVaultDepositOptions(vault.name)
+        ? getVaultDepositOptions(vault.name, vault.isAcceptingDeposits)
         : { depositEnabled: true, tokens: [] },
     [vault],
   );
