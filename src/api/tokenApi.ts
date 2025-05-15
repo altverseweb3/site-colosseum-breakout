@@ -1,4 +1,4 @@
-// src/api/evmTokenApi.ts
+// src/api/tokenApi.ts
 import {
   Network,
   TokenAddressInfo,
@@ -26,6 +26,21 @@ export interface BalancesRequest extends BaseRequest {
   contractAddresses?: string; // Comma-separated list
 }
 
+export interface SuiBalancesRequest {
+  owner: string;
+}
+
+export interface SuiBalancesRequest {
+  owner: string;
+}
+
+export interface SuiBalanceResult {
+  coinType: string;
+  coinObjectCount: number;
+  totalBalance: string;
+  lockedBalance: object;
+}
+
 export interface AllowanceRequest extends BaseRequest {
   userAddress: string;
   contractAddress: string;
@@ -40,6 +55,17 @@ export interface PricesRequest {
   addresses: TokenAddressInfo[];
 }
 
+export interface SuiBalancesRequest {
+  owner: string;
+}
+
+export interface SuiBalanceResult {
+  coinType: string;
+  coinObjectCount: number;
+  totalBalance: string;
+  lockedBalance: object;
+}
+
 // Endpoint-specific response types
 export interface AllowanceResponse {
   allowance: string; // Hex string
@@ -49,7 +75,7 @@ export interface PricesResponse {
   data: TokenPriceResult[];
 }
 
-export class EvmTokenAPI {
+export class TokenAPI {
   private baseUrl: string;
 
   constructor(
@@ -82,6 +108,7 @@ export class EvmTokenAPI {
   ): Promise<ApiResponse<SolanaTokenBalance[]>> {
     return this.request<SolanaTokenBalance[]>("POST", "spl-balances", request);
   }
+
   /**
    * Check token allowance for a given user/spender pair
    */
@@ -109,13 +136,23 @@ export class EvmTokenAPI {
     return this.request<PricesResponse>("POST", "prices", request);
   }
 
+  public async getSuiBalances(
+    request: SuiBalancesRequest,
+  ): Promise<ApiResponse<SuiBalanceResult[]>> {
+    return this.request<SuiBalanceResult[]>(
+      "POST",
+      "sui/all-balances",
+      request,
+    );
+  }
+
   /**
    * Unified request method that handles both GET and POST requests
    */
   private async request<T>(
     method: "GET" | "POST",
     endpoint: string,
-    body?: BaseRequest | PricesRequest,
+    body?: BaseRequest | PricesRequest | SuiBalancesRequest,
   ): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseUrl}/${endpoint}`;
@@ -174,4 +211,4 @@ export class EvmTokenAPI {
 }
 
 // Export a singleton instance
-export const evmTokenApi = new EvmTokenAPI();
+export const tokenApi = new TokenAPI();

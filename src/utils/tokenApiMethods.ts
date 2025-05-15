@@ -1,5 +1,5 @@
 // src/utils/tokenApiMethods.ts
-import { evmTokenApi } from "@/api/evmTokenApi";
+import { tokenApi, ApiResponse } from "@/api/tokenApi";
 import { getChainByChainId } from "@/config/chains";
 import useWeb3Store from "@/store/web3Store";
 import {
@@ -9,7 +9,9 @@ import {
   TokenMetadata,
   SolanaTokenBalance,
   EnhancedTokenBalance,
+  TokenBalance,
 } from "@/types/web3";
+import { SuiBalanceResult } from "@/api/tokenApi";
 
 /**
  * Formats a balance from hex or large number string to a human-readable token amount
@@ -121,16 +123,30 @@ export async function getPricesAndBalancesForChain(
         console.log(
           `Fetching balances for address ${userAddress} on ${chainType} chain (${networkName})`,
         );
-        const balanceResponse =
-          chain.id === "solana"
-            ? await evmTokenApi.getSplBalances({
-                network: networkName,
-                userAddress,
-              })
-            : await evmTokenApi.getBalances({
-                network: networkName,
-                userAddress,
-              });
+
+        let balanceResponse:
+          | ApiResponse<SuiBalanceResult[]>
+          | ApiResponse<SolanaTokenBalance[]>
+          | ApiResponse<TokenBalance[]>;
+
+        if (chain.id === "sui") {
+          // Handle Sui balances
+          balanceResponse = await tokenApi.getSuiBalances({
+            owner: userAddress,
+          });
+        } else if (chain.id === "solana") {
+          // Handle Solana SPL balances
+          balanceResponse = await tokenApi.getSplBalances({
+            network: networkName,
+            userAddress,
+          });
+        } else {
+          // Handle EVM balances
+          balanceResponse = await tokenApi.getBalances({
+            network: networkName,
+            userAddress,
+          });
+        }
 
         if (balanceResponse.error || !balanceResponse.data) {
           console.error(
@@ -139,10 +155,28 @@ export async function getPricesAndBalancesForChain(
           );
           // Update store with empty balances for this user/chain to clear old data
           useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
-          // Continue to fetch alwaysLoadPrice tokens even if balance fetch fails
+          // Continue to fetch alwaysLoadPrice tokens even if balance fetch fails (except for Sui)
         } else {
-          // Transform Solana response to match EVM format
-          if (chain.id === "solana") {
+          // Transform responses to match EVM format
+          if (chain.id === "sui") {
+            // Transform Sui response to match EVM format
+            // Need to format balances using token decimals since Sui returns raw amounts
+            balanceData = (balanceResponse.data as SuiBalanceResult[]).map(
+              (suiBalance) => {
+                // We'll need to format this balance later when we have token metadata
+                // For now, store the raw balance and let the processing section handle formatting
+                return {
+                  contractAddress: suiBalance.coinType, // Already normalized during token loading
+                  tokenBalance: suiBalance.totalBalance, // Keep raw balance for now
+                  // Include additional Sui-specific properties
+                  coinObjectCount: suiBalance.coinObjectCount,
+                  lockedBalance: suiBalance.lockedBalance,
+                  // Mark this as needing formatting
+                  needsFormatting: true,
+                } as EnhancedTokenBalance & { needsFormatting?: boolean };
+              },
+            );
+          } else if (chain.id === "solana") {
             // Transform Solana SPL token response to match EVM format
             balanceData = (balanceResponse.data as SolanaTokenBalance[]).map(
               (splToken) => ({
@@ -179,11 +213,11 @@ export async function getPricesAndBalancesForChain(
               `Found ${balanceData.length} token balances for ${userAddress} on ${chainType} chain.`,
             );
 
-            // Extract addresses with balance - preserve case for Solana, lowercase for others
+            // Extract addresses with balance - preserve case for Solana and Sui, lowercase for others
             addressesWithBalance = balanceData.map(
               (balance) =>
-                chain.id === "solana"
-                  ? balance.contractAddress // Keep original case for Solana
+                chain.id === "solana" || chain.id === "sui"
+                  ? balance.contractAddress // Keep original case for Solana and Sui
                   : balance.contractAddress.toLowerCase(), // Lowercase for EVM chains
             );
           }
@@ -192,7 +226,7 @@ export async function getPricesAndBalancesForChain(
         console.error(`Error fetching balances for ${chainType} chain:`, error);
         // Update store with empty balances on error
         useWeb3Store.getState().updateTokenBalances(chainId, userAddress, []);
-        // Continue to fetch alwaysLoadPrice tokens even if balance fetch fails
+        // Continue to fetch alwaysLoadPrice tokens even if balance fetch fails (except for Sui)
       }
     } else {
       console.log(
@@ -200,7 +234,34 @@ export async function getPricesAndBalancesForChain(
       );
     }
 
-    // 3. Prepare Addresses for Price Fetching
+    // 3. Skip price fetching for Sui chains
+    if (chain.id === "sui") {
+      console.log(`Skipping price fetch for Sui chain as requested.`);
+
+      // 6. Process Balances for Sui if userAddress is provided and we have balance data
+      if (userAddress && balanceData && balanceData.length > 0) {
+        // For Sui, we'll just update the balances without price calculations
+        const processedBalances = balanceData.map((balance) => ({
+          ...balance,
+          balanceUsd: undefined, // No USD value calculation for Sui
+        }));
+
+        // 7. Update Token Balances in the Store
+        useWeb3Store
+          .getState()
+          .updateTokenBalances(chainId, userAddress, processedBalances);
+        console.log(
+          `Updated ${processedBalances.length} processed token balances in the store for user ${userAddress} on ${chainType} chain ${chainId}.`,
+        );
+      }
+
+      console.log(
+        `Successfully completed fetch for ${chainType} chain (ID: ${chainId}) - Sui balances only`,
+      );
+      return true;
+    }
+
+    // 3. Prepare Addresses for Price Fetching (for non-Sui chains)
     // Get tokens with alwaysLoadPrice - preserve case for Solana, lowercase for others
     const alwaysLoadPriceAddresses = useWeb3Store
       .getState()
@@ -250,7 +311,7 @@ export async function getPricesAndBalancesForChain(
         console.log(
           `Processing price batch ${i + 1}/${batches.length} for ${chainType} chain`,
         );
-        const response = await evmTokenApi.getTokenPrices({ addresses: batch });
+        const response = await tokenApi.getTokenPrices({ addresses: batch });
 
         if (response.error || !response.data) {
           console.error(
@@ -463,7 +524,7 @@ export async function getTokenMetadata(
     }
 
     // Prepare and send the request
-    const response = await evmTokenApi.getTokenMetadata({
+    const response = await tokenApi.getTokenMetadata({
       network: chain.alchemyNetworkName,
       contractAddress,
     });

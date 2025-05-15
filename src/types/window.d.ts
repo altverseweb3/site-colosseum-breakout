@@ -68,8 +68,6 @@ declare global {
     ethereum?: PartialEthereumProvider;
     solana?: PartialSolanaProvider;
 
-    // For backward compatibility with older code that doesn't specify provider type
-    // This allows your existing code to continue working
     phantom?: PartialSolanaProvider;
   }
 }

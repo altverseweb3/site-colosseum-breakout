@@ -24,6 +24,23 @@ export interface StructuredTokenData {
   allTokensList: Token[];
 }
 
+function normalizeSuiAddressToShort(address: string): string {
+  if (!address.startsWith("0x")) return address;
+
+  const parts = address.split("::");
+  if (parts.length < 2) return address;
+
+  try {
+    const hexValue = BigInt(parts[0]);
+    // Convert to short form (removes leading zeros)
+    const shortHex = "0x" + hexValue.toString(16);
+    return [shortHex, ...parts.slice(1)].join("::");
+  } catch (error) {
+    console.error("Error converting Sui address to short form:", error);
+    return address;
+  }
+}
+
 export const loadTokensForChain = async (
   fetchChainId: string,
 ): Promise<Token[]> => {
@@ -45,35 +62,52 @@ export const loadTokensForChain = async (
     const data: TokenDataItem[] = await chainResponse.json();
 
     const numericChainId = chainConfig.chainId;
+    const isSuiChain = fetchChainId === "sui";
 
-    // load standard ERC20s
+    // load standard ERC20s (and Sui tokens)
     let tokensForChain: Token[] = [];
     tokensForChain = data.map((item) => {
+      let contractAddress: string;
+      let tokenDecimals: number;
+      let isNativeToken = false;
+
+      if (item.contract_address === "native") {
+        // Handle native tokens for Solana and EVM (but not Sui)
+        if (numericChainId === 101) {
+          contractAddress = "11111111111111111111111111111111"; // Solana native
+        } else {
+          contractAddress = "0x0000000000000000000000000000000000000000"; // EVM native
+        }
+        tokenDecimals = 18;
+        isNativeToken = true;
+      } else {
+        // For all other tokens (including Sui tokens and Sui native)
+        contractAddress = isSuiChain
+          ? normalizeSuiAddressToShort(item.contract_address)
+          : item.contract_address;
+        tokenDecimals = item.metadata.decimals;
+        isNativeToken = false;
+      }
+
       return {
         id: item.id,
         name: item.name.toLowerCase(),
         ticker: item.symbol.toUpperCase(),
         icon: item.local_image,
-        address:
-          item.contract_address === "native"
-            ? numericChainId === 101
-              ? "11111111111111111111111111111111"
-              : "0x0000000000000000000000000000000000000000"
-            : item.contract_address,
-        decimals:
-          item.contract_address === "native" ? 18 : item.metadata.decimals,
+        address: contractAddress,
+        decimals: tokenDecimals,
         chainId: numericChainId,
         isWalletToken: false,
-        native: false,
+        native: isNativeToken,
       };
     });
 
-    // laod native asset (and filter existing native asset if already present)
+    // load native asset (and filter existing native asset if already present)
     const nativeResponse = await fetch(`/tokens/native/data.json`);
 
     if (!nativeResponse.ok) {
       console.warn(`No native token data found!`);
-      return [];
+      return tokensForChain; // Return what we have so far
     }
 
     const nativeData: TokenDataItem[] = await nativeResponse.json();
@@ -81,18 +115,45 @@ export const loadTokensForChain = async (
     const nativeToken = nativeData
       .filter((item) => item.id === fetchChainId)
       .map((item) => {
+        // For Sui, the native token should already be included in the main token data
+        // with the actual address, so we might not need to add it separately
+        // But if it's here, normalize the address
+        let nativeAddress = item.contract_address;
+        if (isSuiChain && nativeAddress.startsWith("0x")) {
+          nativeAddress = normalizeSuiAddressToShort(nativeAddress);
+        }
+
         return {
           id: item.id,
           name: item.name.toLowerCase(),
           ticker: item.symbol.toUpperCase(),
           icon: item.local_image,
-          address: item.contract_address,
+          address: nativeAddress,
           decimals: 18,
           chainId: numericChainId,
           isWalletToken: false,
           native: true,
         };
       });
+
+    // For Sui, check if native token is already included in the main tokens
+    // to avoid duplicates (since Sui native has an actual address, not "native")
+    if (isSuiChain && nativeToken.length > 0) {
+      const nativeTokenAddress = nativeToken[0].address;
+      const alreadyExists = tokensForChain.some(
+        (token) => token.address === nativeTokenAddress,
+      );
+
+      if (alreadyExists) {
+        // Update the existing token to mark it as native
+        tokensForChain = tokensForChain.map((token) =>
+          token.address === nativeTokenAddress
+            ? { ...token, native: true }
+            : token,
+        );
+        return tokensForChain;
+      }
+    }
 
     return tokensForChain.concat(nativeToken);
   } catch (error) {
