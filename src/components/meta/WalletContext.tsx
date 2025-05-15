@@ -35,26 +35,21 @@ const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   bsc,
 ];
 
-// 0. Create the Ethers adapter
 export const ethersAdapter = new EthersAdapter();
 
-// 1. Create Solana adapter
 const solanaWeb3JsAdapter = new SolanaAdapter({
   wallets: [new PhantomWalletAdapter() as unknown as BaseWalletAdapter<string>],
 });
 
-// 2. Get projectId from https://cloud.reown.com
 const projectId = "7499f033392cb44c546b3c9de7550340";
 
-// 3. Set up the metadata - Optional
 const metadata = {
   name: "altverse",
   description: "AppKit Example",
-  url: "https://example.com", // origin must match your domain & subdomain
+  url: "https://example.com",
   icons: ["https://avatars.githubusercontent.com/u/179229932"],
 };
 
-// 4. Create the AppKit instance
 createAppKit({
   adapters: [ethersAdapter, solanaWeb3JsAdapter],
   networks,

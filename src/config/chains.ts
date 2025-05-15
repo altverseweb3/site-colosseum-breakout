@@ -190,7 +190,7 @@ export const chains: Record<string, Chain> = {
     symbol: "SOL",
     currency: "Solana",
     icon: "SOL.svg",
-    backgroundColor: "#9945FF",
+    backgroundColor: "#36F295",
     fontColor: "#FFFFFF",
     rpcUrl: "https://api.mainnet-beta.solana.com",
     explorerUrl: "https://explorer.solana.com/",

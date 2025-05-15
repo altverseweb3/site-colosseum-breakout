@@ -187,7 +187,7 @@ export const ConnectWalletModal = ({
     {
       id: WalletType.REOWN_EVM,
       name: "evm wallets",
-      icons: ["/wallets/metamask.svg", "/wallets/walletconnect.svg"],
+      icons: ["/wallets/metamask.svg"],
       disabled: false,
       background: "bg-[#E27625]/0",
       connectMethod: async () => {

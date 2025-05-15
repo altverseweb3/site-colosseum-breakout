@@ -222,7 +222,25 @@ export function useWalletConnection() {
       store.removeWallet(WalletType.SUIET_SUI);
     }
   }, [suiConnected, suiAddress, suiWalletName, syncWalletToStore]);
+  useEffect(() => {
+    if (evmAccount.isConnected && evmNetwork.chainId !== undefined) {
+      const store = useWeb3Store.getState();
+      const requiredWallet = store.getWalletBySourceChain();
 
+      if (requiredWallet?.type === WalletType.REOWN_EVM) {
+        // Convert chainId to a number if it's a string
+        const numericChainId =
+          typeof evmNetwork.chainId === "string"
+            ? parseInt(evmNetwork.chainId, 10)
+            : evmNetwork.chainId;
+
+        if (requiredWallet.chainId !== numericChainId) {
+          store.updateWalletChainId(WalletType.REOWN_EVM, numericChainId);
+          console.log(`EVM chain updated to ${numericChainId}`);
+        }
+      }
+    }
+  }, [evmNetwork.chainId, evmAccount.isConnected]);
   /**
    * Connect to a wallet via Reown AppKit or Suiet
    * @param walletType Specific wallet type to connect to
@@ -436,6 +454,9 @@ export function useWalletConnection() {
 export function useChainSwitch() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requiredWallet = useWeb3Store((state) =>
+    state.getWalletBySourceChain(),
+  );
 
   // Get the wallet connection hook for access to both wallet types
   const { evmNetwork, solanaNetwork } = useWalletConnection();
@@ -448,7 +469,9 @@ export function useChainSwitch() {
 
       // For Sui wallets, just update the store with the chain ID
       if (chain.walletType === WalletType.SUIET_SUI) {
-        return true;
+        useWeb3Store
+          .getState()
+          .updateWalletChainId(requiredWallet!.type, chain.chainId);
       }
 
       // For EVM and Solana wallets, proceed with regular network switching
@@ -494,6 +517,10 @@ export function useChainSwitch() {
       } else if (isEvmChain) {
         await evmNetwork.switchNetwork(reownNetwork);
       }
+
+      useWeb3Store
+        .getState()
+        .updateWalletChainId(requiredWallet!.type, chain.chainId);
 
       return true;
     } catch (error) {
@@ -574,7 +601,7 @@ export function ensureCorrectWalletTypeForChain(sourceChain: Chain): boolean {
 
 interface TokenTransferOptions {
   // Transfer type - affects UI text and functionality
-  type: "swap" | "bridge";
+  type: "swap" | "bridge" | "V";
   onSuccess?: (
     amount: string,
     sourceToken: Token,
@@ -662,6 +689,12 @@ export function useTokenTransfer(
   // Get wallet providers and signers
   const { getEvmSigner, getSolanaSigner } = useWalletProviderAndSigner();
 
+  // Add the chain switch hook
+  const { switchToSourceChain, isLoading: isChainSwitching } = useChainSwitch();
+
+  // Get wallet connection info for chain checking
+  const { evmNetwork } = useWalletConnection();
+
   const latestRequestIdRef = useRef<number>(0);
 
   // Determine if source chain requires Solana or Sui
@@ -732,9 +765,6 @@ export function useTokenTransfer(
 
   const isValid: boolean =
     options.type === "swap" ? isValidForSwap : isValidForBridge;
-
-  const isButtonDisabled: boolean =
-    !isValid || isProcessing || !isWalletCompatible;
 
   // Update this useEffect to include fee calculation
   useEffect(() => {
@@ -1010,6 +1040,64 @@ export function useTokenTransfer(
       return;
     }
 
+    // NEW: Check if we need to switch chains for EVM wallets
+    if (sourceChain.walletType === WalletType.REOWN_EVM && requiredWallet) {
+      // Convert both chainIds to numbers for comparison
+      const currentChainId =
+        typeof evmNetwork.chainId === "string"
+          ? parseInt(evmNetwork.chainId, 10)
+          : evmNetwork.chainId;
+
+      const targetChainId = sourceChain.chainId;
+
+      // If we're on the wrong chain, switch to the correct one
+      if (currentChainId !== targetChainId) {
+        console.log(
+          `Current chain: ${currentChainId}, Target chain: ${targetChainId}. Switching...`,
+        );
+
+        // Show a loading toast for chain switching
+        const switchToastId = toast.loading(
+          `Switching to ${sourceChain.name}...`,
+          {
+            description: "Please confirm the network switch in your wallet",
+          },
+        );
+
+        try {
+          // Switch to the source chain and wait for completion
+          const switchSuccess = await switchToSourceChain();
+
+          if (!switchSuccess) {
+            // Update the toast to show error instead of dismissing and creating new one
+            toast.error("Failed to switch chains", {
+              id: switchToastId, // Replace the loading toast
+              description: `Please manually switch to ${sourceChain.name} in your wallet`,
+            });
+            return;
+          }
+
+          // Update the toast to show success instead of dismissing and creating new one
+          toast.success(`Switched to ${sourceChain.name}`, {
+            id: switchToastId, // Replace the loading toast
+            description: "You can now proceed with the swap",
+          });
+
+          // Wait a bit for the chain switch to fully propagate
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error("Error switching chains:", error);
+          // Update the toast to show error instead of dismissing and creating new one
+          toast.error("Failed to switch chains", {
+            id: switchToastId, // Replace the loading toast
+            description:
+              error instanceof Error ? error.message : "Unknown error",
+          });
+          return;
+        }
+      }
+    }
+
     // Generate a toast ID that we'll use for both success and error cases
     const toastId = toast.loading(
       `${options.type === "swap" ? "Swapping" : "Bridging"} ${amount} ${sourceToken!.ticker}...`,
@@ -1185,9 +1273,10 @@ export function useTokenTransfer(
     amount,
     setAmount,
     handleAmountChange,
-    isProcessing,
+    isProcessing: isProcessing || isChainSwitching, // Include chain switching in processing state
     isValid,
-    isButtonDisabled,
+    isButtonDisabled:
+      !isValid || isProcessing || !isWalletCompatible || isChainSwitching,
     quoteData,
     receiveAmount,
     isLoadingQuote,

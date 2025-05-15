@@ -160,22 +160,16 @@ export async function getPricesAndBalancesForChain(
           // Transform responses to match EVM format
           if (chain.id === "sui") {
             // Transform Sui response to match EVM format
-            // Need to format balances using token decimals since Sui returns raw amounts
+            // Balances will be formatted in the Sui-specific processing section
             balanceData = (balanceResponse.data as SuiBalanceResult[]).map(
-              (suiBalance) => {
-                // We'll need to format this balance later when we have token metadata
-                // For now, store the raw balance and let the processing section handle formatting
-                return {
-                  contractAddress: suiBalance.coinType, // Already normalized during token loading
-                  tokenBalance: suiBalance.totalBalance, // Keep raw balance for now
-                  // Include additional Sui-specific properties
-                  coinObjectCount: suiBalance.coinObjectCount,
-                  lockedBalance: suiBalance.lockedBalance,
-                  // Mark this as needing formatting
-                  needsFormatting: true,
-                } as EnhancedTokenBalance & { needsFormatting?: boolean };
-              },
-            );
+              (suiBalance) => ({
+                contractAddress: suiBalance.coinType, // Already normalized during token loading
+                tokenBalance: suiBalance.totalBalance, // Keep raw balance - will be formatted later
+                // Include additional Sui-specific properties
+                coinObjectCount: suiBalance.coinObjectCount,
+                lockedBalance: suiBalance.lockedBalance,
+              }),
+            ) as EnhancedTokenBalance[];
           } else if (chain.id === "solana") {
             // Transform Solana SPL token response to match EVM format
             balanceData = (balanceResponse.data as SolanaTokenBalance[]).map(
@@ -240,11 +234,53 @@ export async function getPricesAndBalancesForChain(
 
       // 6. Process Balances for Sui if userAddress is provided and we have balance data
       if (userAddress && balanceData && balanceData.length > 0) {
-        // For Sui, we'll just update the balances without price calculations
-        const processedBalances = balanceData.map((balance) => ({
-          ...balance,
-          balanceUsd: undefined, // No USD value calculation for Sui
-        }));
+        // Get token metadata for formatting
+        const updatedTokens = useWeb3Store
+          .getState()
+          .getTokensForChain(chainId);
+
+        // Create lookup mapping for Sui tokens
+        const tokensByAddress: Record<string, Token> = {};
+        updatedTokens.forEach((token) => {
+          tokensByAddress[token.address] = token;
+        });
+
+        // Process and format Sui balances
+        const processedBalances = balanceData.map((balance) => {
+          const token = tokensByAddress[balance.contractAddress];
+
+          if (token && token.decimals !== undefined) {
+            // Format the raw Sui balance using the token's decimals
+            const formattedBalance = formatTokenBalance(
+              balance.tokenBalance,
+              token.decimals,
+            );
+
+            return {
+              ...balance,
+              tokenBalance: formattedBalance,
+              balanceUsd: undefined, // No USD value calculation for Sui
+            };
+          } else {
+            // If we don't have token info, assume SUI native with 9 decimals as fallback
+            const fallbackDecimals =
+              balance.contractAddress === "0x2::sui::SUI" ? 9 : 9;
+            const formattedBalance = formatTokenBalance(
+              balance.tokenBalance,
+              fallbackDecimals,
+            );
+
+            console.warn(
+              `Token info missing for Sui address ${balance.contractAddress}. Using fallback decimals (${fallbackDecimals}).`,
+            );
+
+            return {
+              ...balance,
+              tokenBalance: formattedBalance,
+              balanceUsd: undefined,
+            };
+          }
+        });
 
         // 7. Update Token Balances in the Store
         useWeb3Store
