@@ -340,16 +340,16 @@ const EarnComponent: React.FC = () => {
                     <th className="p-4 text-left text-zinc-400 font-medium w-[28%]">
                       Vault
                     </th>
-                    <th className="p-4 text-left text-zinc-400 font-medium w-[20%]">
+                    <th className="p-4 text-left text-zinc-400 font-medium w-[13%]">
                       Type
                     </th>
-                    <th className="p-4 text-left text-zinc-400 font-medium w-[25%] pr-0">
+                    <th className="p-4 text-left text-zinc-400 font-medium w-[31%] pr-0">
                       Token
                     </th>
                     <th className="p-4 text-center text-zinc-400 font-medium w-[12%] pl-0">
                       APY
                     </th>
-                    <th className="p-4 text-right text-zinc-400 font-medium w-[15%]">
+                    <th className="p-4 text-right text-zinc-400 font-medium w-[16%]">
                       TVL
                     </th>
                   </tr>
@@ -390,7 +390,7 @@ const EarnComponent: React.FC = () => {
                       <td className="p-4 pr-0">
                         <div
                           className="flex flex-wrap"
-                          style={{ width: "120px" }}
+                          style={{ width: "fit-content", maxWidth: "200px" }}
                         >
                           {vault.token.map((tokenName, idx) => (
                             <div
@@ -400,10 +400,9 @@ const EarnComponent: React.FC = () => {
                               style={{
                                 width: "30px",
                                 height: "30px",
-                                marginLeft: idx % 4 === 0 ? "0" : "-10px",
-                                marginTop: idx >= 4 ? "4px" : "0",
-                                zIndex: 10 - (idx % 4),
-                              }} /* Overlapping effect with 4 tokens per row */
+                                marginLeft: idx === 0 ? "0" : "-10px",
+                                zIndex: 10 - (idx % 20),
+                              }} /* Overlapping effect in a single row */
                             >
                               {TOKEN_SVG_MAPPING[tokenName] ? (
                                 <div className="w-6 h-6 relative flex items-center justify-center flex-shrink-0">
