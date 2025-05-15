@@ -53,6 +53,15 @@ const VAULT_DEPOSIT_OPTIONS: Record<string, VaultDepositOption> = {
       { id: "ebtc", name: "eBTC", icon: "🟡" },
     ],
   },
+  "The Bera BTC Vault": {
+    depositEnabled: true,
+    tokens: [
+      { id: "wbtc", name: "wBTC", icon: "🟡" },
+      { id: "lbtc", name: "LBTC", icon: "🟠" },
+      { id: "cbbtc", name: "cbBTC", icon: "🟠" },
+      { id: "ebtc", name: "eBTC", icon: "🟡" },
+    ],
+  },
   "Market-Neutral USD": {
     depositEnabled: true,
     tokens: [
@@ -81,8 +90,15 @@ const VAULT_DEPOSIT_OPTIONS: Record<string, VaultDepositOption> = {
     disabledMessage: "Deposits are currently disabled for this vault.",
   },
   "The Bera ETH Vault": {
-    depositEnabled: false,
-    disabledMessage: "Deposits are currently disabled for this vault.",
+    depositEnabled: true,
+    tokens: [
+      { id: "weth", name: "wETH", icon: "🔷" },
+      { id: "eth", name: "ETH", icon: "🔷" },
+      { id: "weeth", name: "weETH", icon: "🔸" },
+      { id: "eeth", name: "eETH", icon: "🔶" },
+      { id: "steth", name: "stETH", icon: "🔵" },
+      { id: "wsteth", name: "wstETH", icon: "🔵" },
+    ],
   },
 };
 
@@ -100,6 +116,11 @@ const VAULT_RECEIVE_TOKENS: Record<
     name: "liquidBTC",
     icon: "🟠",
     imagePath: "/earnImages/earnTokens/liquidbtc-icon.svg",
+  },
+  "The Bera BTC Vault": {
+    name: "BeraBTC",
+    icon: "🐻",
+    imagePath: "/earnImages/earnSVGs/beraeth.svg",
   },
   "Market-Neutral USD": {
     name: "liquidUSD",
@@ -176,9 +197,12 @@ export const VaultModal = ({
   // Token SVG mapping with updated image paths
   const TOKEN_SVG_MAPPING: Record<string, string> = {
     // Deposit tokens
+    eth: "/earnImages/earnTokens/eth-icon-2.png",
     weth: "/earnImages/earnTokens/eth-icon-2.png",
     eeth: "/earnImages/earnTokens/eeth-icon.png",
-    weeth: "/earnImages/earnTokens/weeth-icon.png",
+    weeth: "/earnImages/earnSVGs/weETH.png",
+    steth: "/earnImages/earnSVGs/stETH.svg",
+    wsteth: "/earnImages/earnSVGs/wstETH.png",
     wbtc: "/earnImages/earnTokens/wbtc.png",
     lbtc: "/earnImages/earnTokens/lbtc-icon.png",
     cbbtc: "/earnImages/earnTokens/cbbtc-icon.png",
@@ -199,6 +223,8 @@ export const VaultModal = ({
     "Liquid BTC Yield": "/earnImages/earnTokens/liquidbtc-icon.svg",
     BeraETH: "/earnImages/earnSVGs/beraeth.svg",
     "The Bera ETH Vault": "/earnImages/earnSVGs/beraeth.svg",
+    BeraBTC: "/earnImages/earnSVGs/beraeth.svg",
+    "The Bera BTC Vault": "/earnImages/earnSVGs/beraeth.svg",
     "Liquid Move ETH": "/earnImages/earnSVGs/liquidmove.png",
     "UltraYield Stablecoin Vault": "/earnImages/earnSVGs/ultrayieldstable.png",
     "Market-Neutral USD": "/earnImages/earnTokens/usdc-icon.png",
@@ -577,9 +603,33 @@ export const VaultModal = ({
 
             <div className="flex items-center justify-between">
               <div className="text-sm text-zinc-400">APY</div>
-              {/* Special case for EIGEN Restaking */}
-              {vault.name === "EIGEN Restaking" ? (
-                <div className="flex items-center justify-end">
+              {/* Special case for Liquid Move ETH with hardcoded 11% APY */}
+              {vault.name === "Liquid Move ETH" ? (
+                <div className="flex items-center gap-3">
+                  <div className="text-green-500 text-sm font-medium">
+                    11.00%
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="flex items-center justify-center gap-1 h-6 border-zinc-700 text-zinc-300 hover:text-zinc-100 text-xs px-2 py-0"
+                    onClick={() =>
+                      window.open(
+                        vault.analyticsUrl ||
+                          `https://analytics.example.com/vaults/${vault.id}`,
+                        "_blank",
+                      )
+                    }
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    <span>Details</span>
+                  </Button>
+                </div>
+              ) : /* Special case for EIGEN Restaking with hardcoded 3.9% APY */
+              vault.name === "EIGEN Restaking" ? (
+                <div className="flex items-center gap-3">
+                  <div className="text-green-500 text-sm font-medium">
+                    3.90%
+                  </div>
                   <Button
                     variant="outline"
                     className="flex items-center justify-center gap-1 h-6 border-zinc-700 text-zinc-300 hover:text-zinc-100 text-xs px-2 py-0"
@@ -588,7 +638,7 @@ export const VaultModal = ({
                     }
                   >
                     <ExternalLink className="h-3 w-3" />
-                    <span>View APY</span>
+                    <span>Details</span>
                   </Button>
                 </div>
               ) : vault.hasRealAPY && vault.apy !== "N/A" ? (

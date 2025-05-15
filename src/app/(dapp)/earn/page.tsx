@@ -15,14 +15,18 @@ const TOKEN_SVG_MAPPING: Record<string, string> = {
   "Liquid ETH Yield": "/earnImages/earnSVGs/liquid-eth-icon.png",
   "Liquid BTC Yield": "/earnImages/earnSVGs/liquid-btc-icon.png",
   "The Bera ETH Vault": "/earnImages/earnSVGs/beraeth.svg",
+  "The Bera BTC Vault": "/earnImages/earnSVGs/beraeth.svg",
   "EIGEN Restaking": "/earnImages/earnSVGs/eigenlayer-icon.svg",
   "UltraYield Stablecoin Vault": "/earnImages/earnSVGs/ultrayieldstable.png",
   "Market-Neutral USD": "/earnImages/earnTokens/usdc-icon.png",
   "Liquid Move ETH": "/earnImages/earnSVGs/liquidmove.png",
   // Token icons
+  ETH: "/earnImages/earnTokens/eth-icon-2.png",
   wETH: "/earnImages/earnTokens/eth-icon-2.png",
   eETH: "/earnImages/earnTokens/eeth-icon.png",
-  weETH: "/earnImages/earnTokens/weeth-icon.png",
+  weETH: "/earnImages/earnSVGs/weETH.png",
+  stETH: "/earnImages/earnSVGs/stETH.svg",
+  wstETH: "/earnImages/earnSVGs/wstETH.png",
   wBTC: "/earnImages/earnTokens/wbtc.png",
   LBTC: "/earnImages/earnTokens/lbtc-icon.png",
   cbBTC: "/earnImages/earnTokens/cbbtc-icon.png",
@@ -85,7 +89,7 @@ const EarnComponent: React.FC = () => {
         console.log("🔄 Fetching TVL data...");
 
         // Make a simple API call to get TVL data
-        const response = await fetch("/api/tvl");
+        const response = await fetch("/api/tvlfetch");
 
         if (response.ok) {
           const data = await response.json();
@@ -117,7 +121,7 @@ const EarnComponent: React.FC = () => {
         console.log("🔄 Fetching APY data...");
 
         // Make a simple API call to get APY data
-        const response = await fetch("/api/apy");
+        const response = await fetch("/api/apyfetch");
 
         if (response.ok) {
           const data = await response.json();
@@ -245,7 +249,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Partner Vault",
       chain: "Ethereum",
-      token: ["wETH", "SOL", "SUI"],
+      token: ["wETH", "eETH", "weETH", "stETH", "wstETH", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -254,6 +258,22 @@ const EarnComponent: React.FC = () => {
       explorerUrl:
         "https://etherscan.io/address/0x83599937c2C9bEA0E0E8ac096c6f32e86486b410",
       analyticsUrl: "https://www.ether.fi/app/liquid/bera-eth",
+    },
+    {
+      id: 8,
+      name: "The Bera BTC Vault",
+      ecosystem: "Bera",
+      type: "Partner Vault",
+      chain: "Ethereum",
+      token: ["wBTC", "LBTC", "cbBTC", "eBTC", "SOL", "SUI"],
+      points: "FML",
+      apy: "", // Will be populated with real-time data
+      description:
+        "The Bera BTC Vault focuses on low-risk strategies with consistent returns for BTC holders.",
+      contractAddress: "0x94599e71926f857E089c3E23Ab4eaDEF3a7FB178",
+      explorerUrl:
+        "https://etherscan.io/address/0x94599e71926f857E089c3E23Ab4eaDEF3a7FB178",
+      analyticsUrl: "https://www.ether.fi/app/liquid/bera-btc",
     },
   ];
 
@@ -432,21 +452,21 @@ const EarnComponent: React.FC = () => {
                           <div className="text-zinc-300 text-sm">
                             Loading...
                           </div>
-                        ) : vault.contractAddress &&
-                          apyValues[vault.contractAddress] ? (
-                          // Check if APY is a number and greater than zero
-                          parseFloat(apyValues[vault.contractAddress]) > 0 ? (
-                            <div className="text-green-500 text-sm font-medium">
-                              {apyValues[vault.contractAddress]}
-                            </div>
-                          ) : (
-                            // For APY values that are 0 or negative
-                            <div className="text-zinc-300 text-sm">
-                              &lt;0.01%
-                            </div>
-                          )
-                        ) : (
-                          // For N/A values when apyValues doesn't have a value or is null
+                        ) : vault.name === "Liquid Move ETH" ? (
+                          // Hardcoded 11% APY for Liquid Move ETH vault
+                          <div className="text-green-500 text-sm font-medium">
+                            11.0%
+                          </div>
+                        ) : vault.name === "EIGEN Restaking" ? (
+                          // Hardcoded 3.9% APY for EIGEN Restaking vault
+                          <div className="text-green-500 text-sm font-medium">
+                            3.9%
+                          </div>
+                        ) : vault.name === "The Bera ETH Vault" ||
+                          vault.name === "The Bera BTC Vault" ||
+                          !vault.contractAddress ||
+                          !apyValues[vault.contractAddress] ? (
+                          // For Bera vaults or N/A values when apyValues doesn't have a value or is null
                           <div className="text-zinc-300 text-sm">
                             <Button
                               variant="link"
@@ -459,6 +479,14 @@ const EarnComponent: React.FC = () => {
                               View APY
                             </Button>
                           </div>
+                        ) : // Check if APY is a number and greater than zero
+                        parseFloat(apyValues[vault.contractAddress]) > 0 ? (
+                          <div className="text-green-500 text-sm font-medium">
+                            {apyValues[vault.contractAddress]}
+                          </div>
+                        ) : (
+                          // For APY values that are 0 or negative
+                          <div className="text-zinc-300 text-sm">&lt;0.01%</div>
                         )}
                       </td>
                       <td className="p-4 text-right">

@@ -10,9 +10,12 @@ import {
 // Token addresses (Ethereum mainnet)
 export const TOKEN_ADDRESSES: Record<string, string> = {
   // ETH tokens
+  eth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // Native ETH uses same address as wETH
   weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
   eeth: "0x35fa164735182de50811e8e2e824cfb9b6118ac2",
   weeth: "0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee",
+  steth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84", // Lido stETH
+  wsteth: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0", // Lido wrapped stETH
 
   // BTC tokens
   lbtc: "0x8236a87084f8b84306f72007f36f2618a5634494",
@@ -36,9 +39,12 @@ export const TOKEN_ADDRESSES: Record<string, string> = {
 
 // Token decimals
 export const TOKEN_DECIMALS: Record<string, number> = {
+  eth: 18,
   weth: 18,
   eeth: 18,
   weeth: 18,
+  steth: 18,
+  wsteth: 18,
   lbtc: 8,
   wbtc: 8,
   cbbtc: 8,
@@ -54,25 +60,28 @@ export const TOKEN_DECIMALS: Record<string, number> = {
   solana: 18,
 };
 
-// Minimum deposit amounts by category
-export const MIN_DEPOSIT_AMOUNTS: Record<string, string> = {
-  weth: "0.004",
-  eeth: "0.004",
-  weeth: "0.004",
-  lbtc: "0.000095",
-  wbtc: "0.000095",
-  cbbtc: "0.000095",
-  ebtc: "0.000095",
-  usdc: "10",
-  dai: "10",
-  usdt: "10",
-  usde: "10",
-  deusd: "10",
-  sdeusd: "10",
-  eigen: "1",
-  sui: "1",
-  solana: "1",
-};
+// Minimum deposit amounts by category - removed all minimum requirements
+// export const MIN_DEPOSIT_AMOUNTS: Record<string, string> = {
+//   eth: "0.004",
+//   weth: "0.004",
+//   eeth: "0.004",
+//   weeth: "0.004",
+//   steth: "0.004",
+//   wsteth: "0.004",
+//   lbtc: "0.000095",
+//   wbtc: "0.000095",
+//   cbbtc: "0.000095",
+//   ebtc: "0.000095",
+//   usdc: "10",
+//   dai: "10",
+//   usdt: "10",
+//   usde: "10",
+//   deusd: "10",
+//   sdeusd: "10",
+//   eigen: "1",
+//   sui: "1",
+//   solana: "1",
+// };
 
 // ERC20 ABI (minimal version for approvals)
 export const ERC20_ABI = [
@@ -304,14 +313,8 @@ export async function depositToVault(
     // Get decimals for the token (default to 18 if not found)
     const decimals = TOKEN_DECIMALS[tokenId] || 18;
 
-    // Check minimum deposit amount
-    const minDepositAmount = MIN_DEPOSIT_AMOUNTS[tokenId] || "1";
-    if (parseFloat(amount) < parseFloat(minDepositAmount)) {
-      return {
-        success: false,
-        message: `Minimum deposit amount for ${tokenId} is ${minDepositAmount}`,
-      };
-    }
+    // Minimum deposit amounts have been removed
+    // No minimum deposit check required
 
     // Parse amount with correct decimals
     const depositAmount = ethers.parseUnits(amount, decimals);

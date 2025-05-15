@@ -64,7 +64,7 @@ export async function fetchVedaPoints(
   }
 
   // Use our own API endpoint to avoid CORS issues
-  const apiUrl = `/api/veda-points?userAddress=${walletAddress}`;
+  const apiUrl = `/api/vedapointsfetch?userAddress=${walletAddress}`;
   console.log(`Fetching Veda points data for wallet: ${walletAddress}`);
 
   try {
