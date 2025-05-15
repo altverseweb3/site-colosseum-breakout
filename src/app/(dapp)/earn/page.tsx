@@ -1,12 +1,42 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import VaultModal, { VaultDetails } from "@/components/ui/VaultModal";
 import { getVedaPoints, FormattedVedaPointsData } from "@/utils/vedapoints";
 import useWeb3Store from "@/store/web3Store";
 import { ExternalLink } from "lucide-react";
+
+// Token SVG mapping with updated image paths from tokens folder
+const TOKEN_SVG_MAPPING: Record<string, string> = {
+  // Vault tokens
+  "Liquid ETH Yield": "/earnImages/earnSVGs/liquid-eth-icon.png",
+  "Liquid BTC Yield": "/earnImages/earnSVGs/liquid-btc-icon.png",
+  "The Bera ETH Vault": "/earnImages/earnSVGs/beraeth.svg",
+  "EIGEN Restaking": "/earnImages/earnSVGs/eigenlayer-icon.svg",
+  "UltraYield Stablecoin Vault": "/earnImages/earnSVGs/ultrayieldstable.png",
+  "Market-Neutral USD": "/earnImages/earnTokens/usdc-icon.png",
+  "Liquid Move ETH": "/earnImages/earnSVGs/liquidmove.png",
+  // Token icons
+  wETH: "/earnImages/earnTokens/eth-icon-2.png",
+  eETH: "/earnImages/earnTokens/eeth-icon.png",
+  weETH: "/earnImages/earnTokens/weeth-icon.png",
+  wBTC: "/earnImages/earnTokens/wbtc.png",
+  LBTC: "/earnImages/earnTokens/lbtc-icon.png",
+  cbBTC: "/earnImages/earnTokens/cbbtc-icon.png",
+  eBTC: "/earnImages/earnTokens/ebtc-icon.png",
+  USDC: "/earnImages/earnTokens/usdc-icon.png",
+  DAI: "/earnImages/earnTokens/dai-icon.png",
+  USDT: "/earnImages/earnTokens/usdt-icon.png",
+  USDe: "/earnImages/earnTokens/usde-icon.png",
+  deUSD: "/earnImages/earnTokens/deUSD.png",
+  sdeUSD: "/earnImages/earnTokens/sdeUSD.png",
+  EIGEN: "/earnImages/earnTokens/eigenlayer-token.svg",
+  SUI: "/earnImages/earnTokens/sui-logo.svg",
+  SOL: "/earnImages/earnTokens/solana-sol-logo.svg",
+};
 
 const EarnComponent: React.FC = () => {
   // Add scroll padding at the bottom to ensure the table is fully visible
@@ -119,7 +149,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Featured",
       chain: "Ethereum",
-      token: ["wETH"],
+      token: ["wETH", "eETH", "weETH", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -135,7 +165,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Featured",
       chain: "Ethereum",
-      token: ["wBTC"],
+      token: ["LBTC", "wBTC", "cbBTC", "eBTC", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -151,7 +181,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Strategy Vault",
       chain: "Ethereum",
-      token: ["USDC"],
+      token: ["USDC", "DAI", "USDT", "USDe", "deUSD", "sdeUSD", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -167,7 +197,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Governance Restaking",
       chain: "Ethereum",
-      token: ["EIGEN"],
+      token: ["EIGEN", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -183,7 +213,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Partner Vault",
       chain: "Ethereum",
-      token: ["USDC"],
+      token: ["USDC", "DAI", "USDT", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -199,7 +229,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Partner Vault",
       chain: "Ethereum",
-      token: ["wETH"],
+      token: ["wETH", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -215,7 +245,7 @@ const EarnComponent: React.FC = () => {
       ecosystem: "Ether.fi",
       type: "Partner Vault",
       chain: "Ethereum",
-      token: ["wETH"],
+      token: ["wETH", "SOL", "SUI"],
       points: "FML",
       apy: "", // Will be populated with real-time data
       description:
@@ -271,7 +301,7 @@ const EarnComponent: React.FC = () => {
   return (
     <div className="flex h-full w-full items-start justify-center min-h-[500px]">
       <div className="w-full flex flex-col items-center">
-        <div className="w-[700px] flex justify-center mb-6 mt-6">
+        <div className="w-[800px] flex justify-center mb-6 mt-6">
           {tabs.map((tab) => (
             <Button
               key={tab.id}
@@ -302,19 +332,22 @@ const EarnComponent: React.FC = () => {
           ))}
         </div>
         {activeTab === "yield" && (
-          <div className="w-[700px] bg-zinc-900 rounded-[6px] overflow-hidden">
+          <div className="w-[800px] bg-zinc-900 rounded-[6px] overflow-hidden">
             <div className="px-8 py-4">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-zinc-800">
-                    <th className="p-4 text-left text-zinc-400 font-medium w-[35%]">
+                    <th className="p-4 text-left text-zinc-400 font-medium w-[28%]">
                       Vault
                     </th>
-                    <th className="p-4 text-left text-zinc-400 font-medium w-[30%]">
+                    <th className="p-4 text-left text-zinc-400 font-medium w-[20%]">
                       Type
                     </th>
-                    <th className="p-4 text-left text-zinc-400 font-medium w-[20%]">
+                    <th className="p-4 text-left text-zinc-400 font-medium w-[25%] pr-0">
                       Token
+                    </th>
+                    <th className="p-4 text-center text-zinc-400 font-medium w-[12%] pl-0">
+                      APY
                     </th>
                     <th className="p-4 text-right text-zinc-400 font-medium w-[15%]">
                       TVL
@@ -330,10 +363,23 @@ const EarnComponent: React.FC = () => {
                     >
                       <td className="p-4">
                         <div className="flex items-center">
-                          <div className="w-8 h-8 bg-zinc-700 rounded-full mr-3 flex items-center justify-center">
-                            <span className="text-xs text-zinc-300">
-                              {vault.name[0]}
-                            </span>
+                          <div className="w-8 h-8 min-w-[2rem] bg-zinc-100/10 rounded-full mr-3 flex items-center justify-center overflow-hidden">
+                            {TOKEN_SVG_MAPPING[vault.name] ? (
+                              <div className="w-5 h-5 relative flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                <Image
+                                  src={TOKEN_SVG_MAPPING[vault.name]}
+                                  alt={vault.name}
+                                  width={18}
+                                  height={18}
+                                  className="object-contain max-w-full max-h-full"
+                                  style={{ objectFit: "contain" }}
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-zinc-300">
+                                {vault.name[0]}
+                              </span>
+                            )}
                           </div>
                           <span className="text-zinc-100">{vault.name}</span>
                         </div>
@@ -341,17 +387,80 @@ const EarnComponent: React.FC = () => {
                       <td className="p-4">
                         <span className="text-zinc-400">{vault.type}</span>
                       </td>
-                      <td className="p-4">
-                        <div className="flex">
+                      <td className="p-4 pr-0">
+                        <div
+                          className="flex flex-wrap"
+                          style={{ width: "120px" }}
+                        >
                           {vault.token.map((tokenName, idx) => (
                             <div
                               key={idx}
-                              className="bg-zinc-800 rounded-full px-2 text-xs text-zinc-400 mr-1"
+                              className="flex items-center justify-center relative group"
+                              title={tokenName}
+                              style={{
+                                width: "30px",
+                                height: "30px",
+                                marginLeft: idx % 4 === 0 ? "0" : "-10px",
+                                marginTop: idx >= 4 ? "4px" : "0",
+                                zIndex: 10 - (idx % 4),
+                              }} /* Overlapping effect with 4 tokens per row */
                             >
-                              {tokenName}
+                              {TOKEN_SVG_MAPPING[tokenName] ? (
+                                <div className="w-6 h-6 relative flex items-center justify-center flex-shrink-0">
+                                  <Image
+                                    src={TOKEN_SVG_MAPPING[tokenName]}
+                                    alt={tokenName}
+                                    width={24}
+                                    height={24}
+                                    className="object-contain max-w-full max-h-full"
+                                    style={{ objectFit: "contain" }}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-xs text-zinc-300">
+                                  {tokenName[0]}
+                                </span>
+                              )}
+                              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-zinc-800 text-xs text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-20">
+                                {tokenName}
+                              </div>
                             </div>
                           ))}
                         </div>
+                      </td>
+                      <td className="p-4 pl-0 text-center">
+                        {isApyLoading ? (
+                          <div className="text-zinc-300 text-sm">
+                            Loading...
+                          </div>
+                        ) : vault.contractAddress &&
+                          apyValues[vault.contractAddress] ? (
+                          // Check if APY is a number and greater than zero
+                          parseFloat(apyValues[vault.contractAddress]) > 0 ? (
+                            <div className="text-green-500 text-sm font-medium">
+                              {apyValues[vault.contractAddress]}
+                            </div>
+                          ) : (
+                            // For APY values that are 0 or negative
+                            <div className="text-zinc-300 text-sm">
+                              &lt;0.01%
+                            </div>
+                          )
+                        ) : (
+                          // For N/A values when apyValues doesn't have a value or is null
+                          <div className="text-zinc-300 text-sm">
+                            <Button
+                              variant="link"
+                              className="h-auto p-0 text-xs text-amber-500 hover:text-amber-300"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(vault.analyticsUrl, "_blank");
+                              }}
+                            >
+                              View APY
+                            </Button>
+                          </div>
+                        )}
                       </td>
                       <td className="p-4 text-right">
                         <span className="text-amber-500 font-medium">

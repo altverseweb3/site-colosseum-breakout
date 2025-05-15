@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { ExternalLink, Loader2, CheckCircle2 } from "lucide-react";
 import * as ethers from "ethers";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -86,14 +87,45 @@ const VAULT_DEPOSIT_OPTIONS: Record<string, VaultDepositOption> = {
 };
 
 // Mapping of vault names to their respective receive tokens
-const VAULT_RECEIVE_TOKENS: Record<string, { name: string; icon: string }> = {
-  "Liquid ETH Yield": { name: "liquidETH", icon: "🔹" },
-  "Liquid BTC Yield": { name: "liquidBTC", icon: "🟠" },
-  "Market-Neutral USD": { name: "liquidUSD", icon: "💵" },
-  "EIGEN Restaking": { name: "eEIGEN", icon: "🟣" },
-  "UltraYield Stablecoin Vault": { name: "UltraUSD", icon: "💲" },
-  "Liquid Move ETH": { name: "LiquidMoveETH", icon: "🔄" },
-  "The Bera ETH Vault": { name: "BeraETH", icon: "🐻" },
+const VAULT_RECEIVE_TOKENS: Record<
+  string,
+  { name: string; icon: string; imagePath?: string }
+> = {
+  "Liquid ETH Yield": {
+    name: "liquidETH",
+    icon: "🔹",
+    imagePath: "/earnImages/earnTokens/liquideth-icon.svg",
+  },
+  "Liquid BTC Yield": {
+    name: "liquidBTC",
+    icon: "🟠",
+    imagePath: "/earnImages/earnTokens/liquidbtc-icon.svg",
+  },
+  "Market-Neutral USD": {
+    name: "liquidUSD",
+    icon: "💵",
+    imagePath: "/earnImages/earnTokens/usdc-icon.png",
+  },
+  "EIGEN Restaking": {
+    name: "eEIGEN",
+    icon: "🟣",
+    imagePath: "/earnImages/earnTokens/eeigen-icon.svg",
+  },
+  "UltraYield Stablecoin Vault": {
+    name: "UltraUSD",
+    icon: "💲",
+    imagePath: "/earnImages/earnSVGs/ultrayieldstable.png",
+  },
+  "Liquid Move ETH": {
+    name: "LiquidMoveETH",
+    icon: "🔄",
+    imagePath: "/earnImages/earnSVGs/liquidmove.png",
+  },
+  "The Bera ETH Vault": {
+    name: "BeraETH",
+    icon: "🐻",
+    imagePath: "/earnImages/earnSVGs/beraeth.svg",
+  },
 };
 
 export type VaultDetails = {
@@ -141,6 +173,90 @@ export const VaultModal = ({
     [vault],
   );
 
+  // Token SVG mapping with updated image paths
+  const TOKEN_SVG_MAPPING: Record<string, string> = {
+    // Deposit tokens
+    weth: "/earnImages/earnTokens/eth-icon-2.png",
+    eeth: "/earnImages/earnTokens/eeth-icon.png",
+    weeth: "/earnImages/earnTokens/weeth-icon.png",
+    wbtc: "/earnImages/earnTokens/wbtc.png",
+    lbtc: "/earnImages/earnTokens/lbtc-icon.png",
+    cbbtc: "/earnImages/earnTokens/cbbtc-icon.png",
+    ebtc: "/earnImages/earnTokens/ebtc-icon.png",
+    usdc: "/earnImages/earnTokens/usdc-icon.png",
+    dai: "/earnImages/earnTokens/dai-icon.png",
+    usdt: "/earnImages/earnTokens/usdt-icon.png",
+    usde: "/earnImages/earnTokens/usde-icon.png",
+    deusd: "/earnImages/earnTokens/deUSD.png",
+    sdeusd: "/earnImages/earnTokens/sdeUSD.png",
+    eigen: "/earnImages/earnTokens/eigenlayer-token.svg",
+    sui: "/earnImages/earnTokens/sui-logo.svg",
+    solana: "/earnImages/earnTokens/solana-sol-logo.svg",
+    // Vault tokens
+    liquidETH: "/earnImages/earnTokens/liquideth-icon.svg",
+    "Liquid ETH Yield": "/earnImages/earnTokens/liquideth-icon.svg",
+    liquidBTC: "/earnImages/earnTokens/liquidbtc-icon.svg",
+    "Liquid BTC Yield": "/earnImages/earnTokens/liquidbtc-icon.svg",
+    BeraETH: "/earnImages/earnSVGs/beraeth.svg",
+    "The Bera ETH Vault": "/earnImages/earnSVGs/beraeth.svg",
+    "Liquid Move ETH": "/earnImages/earnSVGs/liquidmove.png",
+    "UltraYield Stablecoin Vault": "/earnImages/earnSVGs/ultrayieldstable.png",
+    "Market-Neutral USD": "/earnImages/earnTokens/usdc-icon.png",
+    "EIGEN Restaking": "/earnImages/earnSVGs/eigenlayer-icon.svg",
+    // Token names as keys
+    SUI: "/earnImages/earnTokens/sui-logo.svg",
+    SOL: "/earnImages/earnTokens/solana-sol-logo.svg",
+    LBTC: "/earnImages/earnTokens/lbtc-icon.png",
+    cbBTC: "/earnImages/earnTokens/cbbtc-icon.png",
+    eBTC: "/earnImages/earnTokens/ebtc-icon.png",
+    wETH: "/earnImages/earnTokens/eth-icon-2.png",
+    eETH: "/earnImages/earnTokens/eeth-icon.png",
+    weETH: "/earnImages/earnTokens/weeth-icon.png",
+    wBTC: "/earnImages/earnTokens/wbtc.png",
+    USDC: "/earnImages/earnTokens/usdc-icon.png",
+    DAI: "/earnImages/earnTokens/dai-icon.png",
+    USDT: "/earnImages/earnTokens/usdt-icon.png",
+    USDe: "/earnImages/earnTokens/usde-icon.png",
+    deUSD: "/earnImages/earnTokens/deUSD.png",
+    sdeUSD: "/earnImages/earnTokens/sdeUSD.png",
+    EIGEN: "/earnImages/earnTokens/eigenlayer-token.svg",
+  };
+
+  // Token Icon component
+  const TokenIcon = ({
+    tokenId,
+    fallbackIcon,
+    size = 24,
+  }: {
+    tokenId: string;
+    fallbackIcon: string;
+    size?: number;
+  }) => {
+    const svgPath = TOKEN_SVG_MAPPING[tokenId];
+
+    if (svgPath) {
+      // Fixed dimensions container with proper centering
+      return (
+        <div
+          className="relative flex items-center justify-center flex-shrink-0 overflow-hidden"
+          style={{ width: `${size}px`, height: `${size}px` }}
+        >
+          <Image
+            src={svgPath}
+            alt={tokenId}
+            width={size - 6} // Slightly smaller to ensure consistent padding
+            height={size - 6}
+            className="object-contain max-w-full max-h-full"
+            style={{ objectFit: "contain" }}
+          />
+        </div>
+      );
+    }
+
+    // Fallback to emoji if no SVG is available
+    return <span className="text-lg">{fallbackIcon}</span>;
+  };
+
   // Memoize the token list to avoid recreating it on every render
   const allTokensForVault = useMemo(
     () =>
@@ -184,6 +300,8 @@ export const VaultModal = ({
   const [isApprovalLoading, setIsApprovalLoading] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<string>("0");
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
   // Get global web3 state
   const { activeWallet } = useWeb3Store();
@@ -210,7 +328,86 @@ export const VaultModal = ({
     setApprovalError(null);
   }, [vault, selectedAsset, amount]);
 
+  // Function to fetch token balance - memoized with useCallback
+  const fetchTokenBalance = useCallback(async () => {
+    if (!activeWallet || !selectedAsset.id) return;
+
+    try {
+      setIsLoadingBalance(true);
+
+      const provider = getWeb3Provider();
+      if (!provider) return;
+
+      // Import token addresses and ABI
+      const { TOKEN_ADDRESSES, TOKEN_DECIMALS, ERC20_ABI } = await import(
+        "@/utils/vaultDepositHelper"
+      );
+
+      const tokenAddress = TOKEN_ADDRESSES[selectedAsset.id];
+      if (!tokenAddress) {
+        console.error(`Token address not found for ${selectedAsset.id}`);
+        return;
+      }
+
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+
+      // Create token contract instance
+      const tokenContract = new ethers.Contract(
+        tokenAddress,
+        ERC20_ABI,
+        signer,
+      );
+
+      // Get balance
+      const balance = await tokenContract.balanceOf(userAddress);
+      const decimals = TOKEN_DECIMALS[selectedAsset.id] || 18;
+
+      // Format balance with token's decimals
+      const formattedBalance = ethers.formatUnits(balance, decimals);
+      setTokenBalance(formattedBalance);
+
+      console.log(`Fetched ${selectedAsset.name} balance: ${formattedBalance}`);
+    } catch (error) {
+      console.error("Error fetching token balance:", error);
+      setTokenBalance("0");
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  }, [activeWallet, selectedAsset.id, selectedAsset.name]);
+
+  // Fetch balance when token changes or wallet connects
+  useEffect(() => {
+    if (activeWallet && selectedAsset.id) {
+      fetchTokenBalance();
+    } else {
+      setTokenBalance("0");
+    }
+  }, [activeWallet, selectedAsset.id, fetchTokenBalance]);
+
   if (!vault) return null;
+
+  // Helper function to format token balance for display
+  const formatBalance = (balance: string): string => {
+    if (!balance || parseFloat(balance) === 0) return "0";
+
+    const num = parseFloat(balance);
+    if (num < 0.000001) return num.toExponential(4);
+    if (num < 0.01) return num.toFixed(6);
+    if (num < 1) return num.toFixed(4);
+    if (num < 10000) return num.toFixed(4);
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  };
+
+  // Function to handle Max button click
+  const handleMaxButtonClick = () => {
+    if (tokenBalance && parseFloat(tokenBalance) > 0) {
+      // Set amount to the user's token balance (with slight reduction to avoid gas issues)
+      // For some tokens, we reduce by a tiny amount to avoid "insufficient funds" errors
+      const maxAmount = parseFloat(tokenBalance) * 0.9999;
+      setAmount(maxAmount.toString());
+    }
+  };
 
   // Define the approval handler function
   async function handleApproveToken() {
@@ -343,8 +540,20 @@ export const VaultModal = ({
       <DialogContent className="sm:w-1/2 w-2/3 rounded-lg bg-[#18181B] border-[#27272A] border [&>button]:!focus:ring-0 [&>button]:!focus:ring-offset-0 [&>button]:!focus:outline-none [&_svg.lucide-x]:text-amber-500 [&_svg.lucide-x]:w-[1.5rem] [&_svg.lucide-x]:h-[1.5rem] [&_svg.lucide-x]:bg-[#442E0B] [&_svg.lucide-x]:rounded-[3px] [&_svg.lucide-x]:border-[#61410B] [&_svg.lucide-x]:border-[0.5px]">
         <DialogHeader>
           <DialogTitle className="text-[#FAFAFA] flex items-center gap-3">
-            <div className="w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center">
-              <span className="text-xs text-zinc-300">{vault.name[0]}</span>
+            <div className="w-8 h-8 min-w-[2rem] bg-zinc-100/10 rounded-full flex items-center justify-center overflow-hidden">
+              {TOKEN_SVG_MAPPING[vault.name] ? (
+                <div className="w-5 h-5 relative flex items-center justify-center">
+                  <Image
+                    src={TOKEN_SVG_MAPPING[vault.name]}
+                    alt={vault.name}
+                    width={20}
+                    height={20}
+                    className="object-contain"
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-zinc-300">{vault.name[0]}</span>
+              )}
             </div>
             <span>
               {vault.name}{" "}
@@ -461,18 +670,41 @@ export const VaultModal = ({
                 </div>
               ) : (
                 <>
-                  {/* Amount Input */}
-                  <div className="text-sm text-zinc-400 mb-2">
-                    Amount to Deposit
+                  {/* Amount Input with balance display */}
+                  <div className="flex justify-between text-sm text-zinc-400 mb-2">
+                    <div>Amount to Deposit</div>
+                    <div className="flex items-center">
+                      {isLoadingBalance ? (
+                        <span className="text-xs text-zinc-500">
+                          Loading balance...
+                        </span>
+                      ) : (
+                        <span className="text-xs text-zinc-500">
+                          Balance: {formatBalance(tokenBalance)}{" "}
+                          {selectedAsset.name}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex border border-zinc-700 rounded-md overflow-hidden mb-4 h-14">
+                  <div className="flex border border-zinc-700 rounded-md overflow-hidden mb-4 h-14 relative">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="0.0"
                       className="flex-grow bg-transparent border-none text-zinc-100 p-3 focus:outline-none"
                     />
+                    {/* Max button - only show if there's a balance and user is connected */}
+                    {activeWallet && parseFloat(tokenBalance) > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMaxButtonClick}
+                        className="absolute right-[145px] top-1/2 transform -translate-y-1/2 px-2 py-1 rounded text-xs font-medium text-amber-500 hover:text-amber-400 bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
+                      >
+                        MAX
+                      </button>
+                    )}
 
                     {/* Asset Selector styled like the swap interface */}
                     <div
@@ -485,17 +717,24 @@ export const VaultModal = ({
                       }}
                     >
                       <div className="flex items-center gap-2">
-                        <div className="text-lg">{selectedAsset.icon}</div>
+                        <div className="w-6 h-6 flex items-center justify-center">
+                          <TokenIcon
+                            tokenId={selectedAsset.id}
+                            fallbackIcon={selectedAsset.icon}
+                            size={22}
+                          />
+                        </div>
                         <div className="flex flex-col leading-none">
                           <span className="text-zinc-100">
                             {selectedAsset.name}
                           </span>
-                          {selectedAsset.id !== "sui" &&
-                            selectedAsset.id !== "solana" && (
-                              <span className="text-[10px] text-zinc-400 mt-[2px]">
-                                {vault.chain || "Ethereum"}
-                              </span>
-                            )}
+                          <span className="text-[10px] text-zinc-400 mt-[2px]">
+                            {selectedAsset.id === "sui"
+                              ? "Sui"
+                              : selectedAsset.id === "solana"
+                                ? "Solana"
+                                : vault.chain || "Ethereum"}
+                          </span>
                         </div>
                       </div>
                       <svg
@@ -522,14 +761,20 @@ export const VaultModal = ({
                           const newAsset = allTokensForVault.find(
                             (asset) => asset.id === e.target.value,
                           );
-                          if (newAsset) setSelectedAsset(newAsset);
+                          if (newAsset) {
+                            setSelectedAsset(newAsset);
+                            // Reset approval status for new token
+                            setIsApproved(false);
+                            setApprovalError(null);
+                            // Token balance will update via useEffect
+                          }
                         }}
                       >
                         {/* Vault-specific tokens first */}
                         {vaultOptions.tokens &&
                           vaultOptions.tokens.map((asset) => (
                             <option key={asset.id} value={asset.id}>
-                              {asset.icon} {asset.name}
+                              {asset.name}
                             </option>
                           ))}
 
@@ -543,7 +788,7 @@ export const VaultModal = ({
                         {/* Add common tokens */}
                         {COMMON_TOKENS.map((asset) => (
                           <option key={asset.id} value={asset.id}>
-                            {asset.icon} {asset.name}
+                            {asset.name}
                           </option>
                         ))}
                       </select>
@@ -556,7 +801,8 @@ export const VaultModal = ({
                   </div>
                   <div className="flex border border-zinc-700 rounded-md overflow-hidden mb-4 h-14">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={amount} // Just using the same amount for now
                       readOnly
                       placeholder="0.0"
@@ -568,21 +814,39 @@ export const VaultModal = ({
                       {VAULT_RECEIVE_TOKENS[vault.name] ? (
                         <>
                           <div className="flex items-center gap-2">
-                            <div className="text-lg">
-                              {VAULT_RECEIVE_TOKENS[vault.name].icon}
-                            </div>
+                            {VAULT_RECEIVE_TOKENS[vault.name].imagePath ? (
+                              <div className="w-5 h-5 relative flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                <Image
+                                  src={
+                                    VAULT_RECEIVE_TOKENS[vault.name].imagePath!
+                                  }
+                                  alt={VAULT_RECEIVE_TOKENS[vault.name].name}
+                                  width={18}
+                                  height={18}
+                                  className="object-contain max-w-full max-h-full"
+                                  style={{ objectFit: "contain" }}
+                                />
+                              </div>
+                            ) : (
+                              <TokenIcon
+                                tokenId={VAULT_RECEIVE_TOKENS[vault.name].name}
+                                fallbackIcon={
+                                  VAULT_RECEIVE_TOKENS[vault.name].icon
+                                }
+                              />
+                            )}
                             <div className="flex flex-col leading-none">
                               <span className="text-zinc-100">
                                 {VAULT_RECEIVE_TOKENS[vault.name].name}
                               </span>
-                              {VAULT_RECEIVE_TOKENS[vault.name].name !==
-                                "SUI" &&
-                                VAULT_RECEIVE_TOKENS[vault.name].name !==
-                                  "SOL" && (
-                                  <span className="text-[10px] text-zinc-400 mt-[2px]">
-                                    {vault.chain || "Ethereum"}
-                                  </span>
-                                )}
+                              <span className="text-[10px] text-zinc-400 mt-[2px]">
+                                {VAULT_RECEIVE_TOKENS[vault.name].name === "SUI"
+                                  ? "Sui"
+                                  : VAULT_RECEIVE_TOKENS[vault.name].name ===
+                                      "SOL"
+                                    ? "Solana"
+                                    : vault.chain || "Ethereum"}
+                              </span>
                             </div>
                           </div>
                         </>
