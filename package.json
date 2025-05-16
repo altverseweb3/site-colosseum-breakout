@@ -6,10 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "vercel-build": "chmod +x ./vercel-build.sh && ./vercel-build.sh",
-    "start": "next start",
-    "lint": "next lint --max-warnings=0",
-    "prepare": "husky install .husky",
-    "postinstall": "chmod +x .husky/pre-push && chmod +x .husky/pre-commit"
+    "start": "next start"
   },
   "dependencies": {
     "@mayanfinance/swap-sdk": "10.5.0",

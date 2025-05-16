@@ -191,6 +191,7 @@ export const chains: Record<string, Chain> = {
     currency: "Solana",
     icon: "SOL.svg",
     backgroundColor: "#36F295",
+    backgroundGradient: "linear-gradient(90deg, #9945FF 5%, #6982DC 35%, #34C6B0 70%, #36F195 100%)",
     fontColor: "#FFFFFF",
     rpcUrl: "https://api.mainnet-beta.solana.com",
     explorerUrl: "https://explorer.solana.com/",
@@ -204,8 +205,8 @@ export const chains: Record<string, Chain> = {
 
 export const chainList: Chain[] = Object.values(chains);
 
-export const defaultSourceChain: Chain = chains.ethereum;
-export const defaultDestinationChain: Chain = chains.unichain;
+export const defaultSourceChain: Chain = chains.solana;
+export const defaultDestinationChain: Chain = chains.ethereum;
 
 export const getChainById = (id: string): Chain => {
   return chains[id] || defaultSourceChain;

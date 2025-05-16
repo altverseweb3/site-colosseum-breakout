@@ -463,7 +463,6 @@ export function useChainSwitch() {
 
   const switchToChain = async (chain: Chain): Promise<boolean> => {
     setError(null);
-
     try {
       setIsLoading(true);
 
@@ -614,7 +613,7 @@ interface TokenTransferState {
   // Input state
   amount: string;
   setAmount: (amount: string) => void;
-  handleAmountChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleAmountChange: (e: React.ChangeEvent<HTMLInputElement> | string) => void;
 
   isProcessing: boolean;
 
@@ -752,12 +751,25 @@ export function useTokenTransfer(
     return transactionDetails.gasDrop;
   }, [transactionDetails.gasDrop]);
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    setAmount(e.target.value);
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement> | string): void => {
+    let value: string;
+  
+    if (typeof e === 'string') {
+      value = e;
+    } else {
+      // Add null check
+      if (e.target) {
+        value = e.target.value;
+      } else {
+        value = '';
+      }
+    }
+    
+    setAmount(value);
   };
 
   const isValidForSwap = Boolean(
-    sourceToken && destinationToken && amount && parseFloat(amount) > 0,
+    sourceToken && destinationToken && amount && parseFloat(amount) > 0 && sourceChain.chainId !== destinationChain.chainId,
   );
   const isValidForBridge = Boolean(
     sourceToken && amount && parseFloat(amount) > 0,
@@ -1171,7 +1183,7 @@ export function useTokenTransfer(
         // Get Solana signer
         const solanaSigner = await getSolanaSigner();
         const connection = new Connection(
-          `https://solana-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
+          `https://solana-mainnet.g.alchemy.com/v2/3-fzkA-jMTQwpjxad-lC7DH8wz0YVi2s`,
           "confirmed",
         );
         // Execute Solana swap
