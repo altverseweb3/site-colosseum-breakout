@@ -166,6 +166,7 @@ const VirtualizedTokenList: React.FC<{
   chain: Chain;
   searchQuery: string;
   isSearchingMetadata?: boolean;
+  vault?: boolean;
 }> = React.memo(
   ({
     walletTokens,
@@ -175,6 +176,7 @@ const VirtualizedTokenList: React.FC<{
     onCopy,
     chain,
     searchQuery,
+    vault
   }) => {
     const { processedWalletTokens, processedAllTokens } = useMemo(() => {
       // Find the first native token
@@ -268,6 +270,7 @@ const VirtualizedTokenList: React.FC<{
     return (
       <>
         {/* Wallet tokens section */}
+        {!vault && 
         <TokenListSection
           title="your wallet"
           tokens={filteredWalletTokens}
@@ -275,7 +278,7 @@ const VirtualizedTokenList: React.FC<{
           copiedAddresses={copiedAddresses}
           onCopy={onCopy}
           chain={chain}
-        />
+        />}
         {/* All tokens section */}
         <TokenListSection
           title="all tokens"
@@ -294,12 +297,14 @@ VirtualizedTokenList.displayName = "VirtualizedTokenList";
 
 interface SelectTokenButtonProps {
   variant: "source" | "destination";
+  vault?: boolean;
   onTokenSelect?: (token: Token) => void;
   selectedToken?: Token;
 }
 
 export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   variant,
+  vault,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -452,7 +457,11 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   }, [chainTokens]);
 
   const allTokens = useMemo(() => {
-    return chainTokens.filter((token) => !token.isWalletToken);
+    if(vault) {
+      return chainTokens.filter((token) => token.ticker === "ETH" || token.ticker === "WETH" || token.ticker === "EETH" || token.ticker === "SUI" || token.ticker === "SOL");
+    } else {
+      return chainTokens.filter((token) => !token.isWalletToken);
+    }
   }, [chainTokens]);
 
   const copyToClipboard = useCallback((text: string, tokenId: string) => {
@@ -656,6 +665,7 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
               chain={chainToShow}
               searchQuery={debouncedSearchQuery}
               isSearchingMetadata={isSearchingMetadata}
+              vault={vault}
             />
           )}
         </div>

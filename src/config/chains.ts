@@ -204,8 +204,8 @@ export const chains: Record<string, Chain> = {
 
 export const chainList: Chain[] = Object.values(chains);
 
-export const defaultSourceChain: Chain = chains.ethereum;
-export const defaultDestinationChain: Chain = chains.unichain;
+export const defaultSourceChain: Chain = chains.solana;
+export const defaultDestinationChain: Chain = chains.ethereum;
 
 export const getChainById = (id: string): Chain => {
   return chains[id] || defaultSourceChain;

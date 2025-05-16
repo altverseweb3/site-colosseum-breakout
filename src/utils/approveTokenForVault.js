@@ -55,7 +55,6 @@ export async function approveTokenForVault(provider, tokenId, vaultId, amount) {
 
     // Create token contract instance
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-
     // Check user's balance
     const balance = await tokenContract.balanceOf(signerAddress);
     console.log(

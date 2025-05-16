@@ -12,8 +12,17 @@ import {
 } from "@/components/ui/StyledDialog";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import useWeb3Store from "@/store/web3Store";
-
+import useWeb3Store, { useSetReceiveAddress, useWalletByType } from "@/store/web3Store";
+import SelectTokenButton from "./SelectTokenButton";
+import SelectChainButton from "./SelectChainButton";
+import { chainList } from "@/config/chains";
+import { AvailableIconName } from "@/types/ui";
+import { useChainSwitch, useTokenTransfer } from "@/utils/walletMethods";
+import { BrandedButton } from "@/components/ui/BrandedButton";
+import { getSafeProvider } from "@/utils/providerUtils";
+import { useAppKitProvider } from "@reown/appkit/react";
+import { chains } from "@/config/chains";
+import { has } from "@suiet/wallet-kit";
 // Define the type for tokens
 type TokenAsset = {
   id: string;
@@ -177,22 +186,263 @@ export const VaultModal = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw">("deposit");
-  const [amount, setAmount] = useState<string>("");
+  const [hasSwapped, setHasSwapped] = useState(false);
+  const [isDepositLoading, setIsDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [isApprovalLoading, setIsApprovalLoading] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentProcessStep, setCurrentProcessStep] = useState<'swap' | 'approve' | 'deposit' | null>(null);
+  const [processError, setProcessError] = useState<string | null>(null);
+  const [swapCompletedAmount, setSwapCompletedAmount] = useState<string>("0.0");
+  const [swapCompleted, setSwapCompleted] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [approveDepositError, setApproveDepositError] = useState<string | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<TokenAsset>({
+    id: "",
+    name: "",
+    icon: "",
+  });
+  // Get global web3 state
+  const activeWallet = useWeb3Store((state) => state.getWalletBySourceChain());
+  const setSourceChain = useWeb3Store((state) => state.setSourceChain);
+  const setSourceToken = useWeb3Store((state) => state.setSourceToken);
+  const destinationChain = useWeb3Store(
+    (state) => state.destinationChain
+  );
+
+  const tokensByCompositeKey = useWeb3Store(
+    (state) => state.tokensByCompositeKey
+  );
+  const { walletProvider: evmProvider } = useAppKitProvider("eip155");
+  const {
+    amount,
+    handleAmountChange,
+    isButtonDisabled,
+    handleTransfer,
+    receiveAmount,
+    isLoadingQuote,
+    sourceToken,
+    destinationToken,
+    estimatedTimeSeconds,
+    totalFeeUsd,
+    protocolFeeUsd,
+    relayerFeeUsd,
+  } = useTokenTransfer({
+    type: "swap",
+    onSuccess: (amount, sourceToken, destinationToken) => {
+      console.log(
+        `Swap succeeded: ${amount} ${sourceToken.ticker} → ${destinationToken?.ticker}`
+      );
+    },
+  });
+  const chainsToShow = chainList.filter(
+    (c) => c.id === "solana" || c.id === "sui" || c.id === "ethereum"
+  );
+  const { switchToSourceChain } = useChainSwitch();
+  const setReceiveAddress = useSetReceiveAddress();
+  const receiveAddress = useWeb3Store(
+    (state) => state.transactionDetails.receiveAddress
+  );
+  
+
+  // Create a more specific subscription to track token balance changes
+  const tokenAddress = sourceToken?.address?.toLowerCase();
+  const chainId = sourceToken?.chainId;
+
+  useEffect(() => {
+    handleAmountChange(swapCompletedAmount!)
+  }, [swapCompletedAmount])
+
+  // This will re-render when the specific token balance changes
+  const tokenBalance = useWeb3Store((state) => {
+    if (!tokenAddress || !chainId) return null;
+
+    // Create a wallet key that matches the one used in updateTokenBalances
+    const requiredWallet = state.getWalletBySourceChain();
+    if (!requiredWallet) return null;
+
+    const walletKey = `${chainId}-${requiredWallet.address.toLowerCase()}`;
+    const balances = state.tokenBalancesByWallet[walletKey];
+
+    return balances?.[tokenAddress] || null;
+  });
+  const updateReceiveAddressForChain = useCallback(() => {
+    if (!destinationChain?.walletType) return;
+
+    // Try to get a wallet of the needed type
+    const matchingWallet = useWalletByType(destinationChain.walletType);
+
+    if (matchingWallet) {
+      // We have a matching wallet, use its address
+      setReceiveAddress(matchingWallet.address);
+    } else {
+      setReceiveAddress(null);
+    }
+  }, [
+    destinationChain?.walletType,
+    useWalletByType,
+    setReceiveAddress,
+    receiveAddress,
+  ]);
+
+  const handleSwapStep = useCallback(async () => {
+    if (!amount || !sourceToken || !destinationToken) {
+      setSwapError("Missing required information for swap");
+      return;
+    }
+  
+    setIsSwapping(true);
+    setSwapError(null);
+  
+    try {
+      await handleTransfer();
+      setSwapCompleted(true);
+      const ethereumChain = chains.ethereum;
+      setSourceChain(ethereumChain);
+      setSwapCompletedAmount(receiveAmount);
+      setSourceToken(destinationToken);
+      console.log("Swap completed successfully");
+    } catch (error) {
+      console.error("Swap error:", error);
+      setSwapError(error instanceof Error ? error.message : "Swap failed");
+    } finally {
+      setIsSwapping(false);
+    }
+  }, [amount, sourceToken, destinationToken, handleTransfer]);
+
+  useEffect(() => {
+    setSwapCompleted(false);
+    setSwapError(null);
+    setApproveDepositError(null);
+    setIsApproved(false);
+  }, [vault, amount, sourceToken]);
+
+  const handleApproveAndDeposit = useCallback(async () => {
+    if (!vault || !activeWallet) {
+      setApproveDepositError("Missing required information");
+      return;
+    }
+  
+    // Determine the amount to use
+    let amountToUse = amount;
+    let tokenToUse = selectedAsset;
+  
+    // If we did a swap, use the receive amount and destination token
+    if (needsSwap && swapCompleted && receiveAmount && destinationToken) {
+      amountToUse = receiveAmount;
+      tokenToUse = {
+        id: destinationToken.ticker.toLowerCase(),
+        name: destinationToken.ticker,
+        icon: destinationToken.ticker === 'WETH' ? '🔷' : '📊'
+      };
+    }
+  
+    if (!amountToUse || parseFloat(amountToUse) <= 0) {
+      setApproveDepositError("Invalid amount");
+      return;
+    }
+  
+    setApproveDepositError(null);
+    const switched = await switchToSourceChain();
+    if (!switched) {
+      setApproveDepositError("Failed to switch to source chain");
+      return;
+    }
+  
+    try {
+      // Step 1: Approve
+      setIsApproving(true);
+      console.log(`Approving ${amountToUse} ${tokenToUse.name}...`);
+      
+      const provider = getWeb3Provider();
+      if (!provider) throw new Error("Could not get provider");
+      
+      await switchToSourceChain();
+      
+      const { approveTokenForVault } = await import("@/utils/approveTokenForVault");
+      const approvalResult = await approveTokenForVault(
+        provider,
+        tokenToUse.id,
+        vault.id,
+        amountToUse
+      );
+  
+      if (!approvalResult.success) {
+        throw new Error(approvalResult.message);
+      }
+  
+      setIsApproved(true);
+      setIsApproving(false);
+  
+      // Step 2: Deposit
+      setIsDepositing(true);
+      console.log(`Depositing ${amountToUse} ${tokenToUse.name}...`);
+  
+      const { depositToVaultSimple } = await import("@/utils/vaultDepositHelper");
+      const depositResult = await depositToVaultSimple(
+        provider,
+        tokenToUse.id,
+        vault.id,
+        amountToUse
+      );
+  
+      if (!depositResult.success) {
+        throw new Error(depositResult.message);
+      }
+  
+      // Success!
+      alert(`Successfully deposited ${amountToUse} ${tokenToUse.name} to ${vault.name}`);
+      onOpenChange(false);
+  
+    } catch (error) {
+      console.error("Approve/Deposit error:", error);
+      setApproveDepositError(error instanceof Error ? error.message : "Operation failed");
+      setIsApproved(false);
+    } finally {
+      setIsApproving(false);
+      setIsDepositing(false);
+    }
+  }, [
+    vault,
+    activeWallet,
+    amount,
+    selectedAsset,
+    swapCompleted,
+    receiveAmount,
+    destinationToken,
+    switchToSourceChain,
+    onOpenChange
+  ]);
+
+  // Use the balance from the direct subscription if available, otherwise fall back to sourceToken
+  const currentBalance = useMemo(() => {
+    return tokenBalance || sourceToken?.userBalance || "0";
+  }, [tokenBalance, sourceToken?.userBalance]);
 
   // Get available deposit tokens for this vault or use default tokens
-  const getVaultDepositOptions = (vaultName: string, isAcceptingDeposits: boolean = true) => {
+  const getVaultDepositOptions = (
+    vaultName: string,
+    isAcceptingDeposits: boolean = true
+  ) => {
     // Get the default options from the map
     const defaultOptions = VAULT_DEPOSIT_OPTIONS[vaultName];
-    
+
     // If the vault is not accepting deposits (from blockchain check), override the deposit status
-    if (isAcceptingDeposits === false) { // Explicitly check for false to handle undefined case
+    if (isAcceptingDeposits === false) {
+      // Explicitly check for false to handle undefined case
       return {
         depositEnabled: false,
         tokens: defaultOptions?.tokens || [],
-        disabledMessage: "Deposits are currently disabled for this vault (paused).",
+        disabledMessage:
+          "Deposits are currently disabled for this vault (paused).",
       };
     }
-    
+
     // Otherwise return the default options or a fallback
     if (!defaultOptions) return { depositEnabled: true, tokens: [] };
     return defaultOptions;
@@ -204,7 +454,7 @@ export const VaultModal = ({
       vault
         ? getVaultDepositOptions(vault.name, vault.isAcceptingDeposits)
         : { depositEnabled: true, tokens: [] },
-    [vault],
+    [vault]
   );
 
   // Token SVG mapping with updated image paths
@@ -261,6 +511,8 @@ export const VaultModal = ({
     EIGEN: "/earnImages/earnTokens/eigenlayer-token.svg",
   };
 
+  
+
   // Token Icon component
   const TokenIcon = ({
     tokenId,
@@ -302,15 +554,9 @@ export const VaultModal = ({
       vault && vaultOptions.depositEnabled && vaultOptions.tokens
         ? [...vaultOptions.tokens, ...COMMON_TOKENS]
         : COMMON_TOKENS,
-    [vault, vaultOptions.depositEnabled, vaultOptions.tokens],
+    [vault, vaultOptions.depositEnabled, vaultOptions.tokens]
   );
-
-  // Initialize selected asset state
-  const [selectedAsset, setSelectedAsset] = useState<TokenAsset>({
-    id: "",
-    name: "",
-    icon: "",
-  });
+  
 
   // Update selected asset when vault changes
   useEffect(() => {
@@ -333,28 +579,21 @@ export const VaultModal = ({
     allTokensForVault,
   ]);
 
-  // State for loading and error messages
-  const [isDepositLoading, setIsDepositLoading] = useState(false);
-  const [depositError, setDepositError] = useState<string | null>(null);
-  const [isApprovalLoading, setIsApprovalLoading] = useState(false);
-  const [isApproved, setIsApproved] = useState(false);
-  const [approvalError, setApprovalError] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<string>("0");
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
-  // Get global web3 state
-  const activeWallet = useWeb3Store(state => state.getWalletBySourceChain());
+  const needsSwap = useMemo(() => {
+    return sourceToken && (sourceToken.chainId === 101 || sourceToken.chainId === 0);
+  }, [sourceToken]);
 
   const getWeb3Provider = () => {
     if (typeof window === "undefined") return null;
 
     try {
       // Check if window.ethereum is available
-      if (window.ethereum) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return new ethers.BrowserProvider(window.ethereum as any);
-      }
-      return null;
+      const safeProvider = getSafeProvider(evmProvider);
+
+      // Create ethers provider and signer
+      const ethersProvider = new ethers.BrowserProvider(safeProvider);
+      return ethersProvider;
     } catch (error) {
       console.error("Error getting web3 provider:", error);
       return null;
@@ -366,85 +605,119 @@ export const VaultModal = ({
     setIsApproved(false);
     setApprovalError(null);
   }, [vault, selectedAsset, amount]);
+  
+  // Modified deposit function that accepts custom amount
 
-  // Function to fetch token balance - memoized with useCallback
-  const fetchTokenBalance = useCallback(async () => {
-    if (!activeWallet || !selectedAsset.id) return;
-
-    try {
-      setIsLoadingBalance(true);
-
-      const provider = getWeb3Provider();
-      if (!provider) return;
-
-      // Import token addresses and ABI
-      const { TOKEN_ADDRESSES, TOKEN_DECIMALS, ERC20_ABI } = await import(
-        "@/utils/vaultDepositHelper"
-      );
-
-      const tokenAddress = TOKEN_ADDRESSES[selectedAsset.id];
-      if (!tokenAddress) {
-        console.error(`Token address not found for ${selectedAsset.id}`);
-        return;
-      }
-
-      const signer = await provider.getSigner();
-      const userAddress = await signer.getAddress();
-
-      // Create token contract instance
-      const tokenContract = new ethers.Contract(
-        tokenAddress,
-        ERC20_ABI,
-        signer,
-      );
-
-      // Get balance
-      const balance = await tokenContract.balanceOf(userAddress);
-      const decimals = TOKEN_DECIMALS[selectedAsset.id] || 18;
-
-      // Format balance with token's decimals
-      const formattedBalance = ethers.formatUnits(balance, decimals);
-      setTokenBalance(formattedBalance);
-
-      console.log(`Fetched ${selectedAsset.name} balance: ${formattedBalance}`);
-    } catch (error) {
-      console.error("Error fetching token balance:", error);
-      setTokenBalance("0");
-    } finally {
-      setIsLoadingBalance(false);
+  const displayReceiveAmount = useMemo(() => {
+    if (needsSwap && receiveAmount) {
+      return receiveAmount;
     }
-  }, [activeWallet, selectedAsset.id, selectedAsset.name]);
-
-  // Fetch balance when token changes or wallet connects
-  useEffect(() => {
-    if (activeWallet && selectedAsset.id) {
-      fetchTokenBalance();
-    } else {
-      setTokenBalance("0");
+    if (isLoadingQuote) {
+      return "quote loading.."
     }
-  }, [activeWallet, selectedAsset.id, fetchTokenBalance]);
-
+    return amount;
+  }, [needsSwap, receiveAmount, amount, isLoadingQuote]);
+  
   if (!vault) return null;
 
-  // Helper function to format token balance for display
+  // Helper function to format token balance for display (max 6 decimals)
   const formatBalance = (balance: string): string => {
-    if (!balance || parseFloat(balance) === 0) return "0";
+    try {
+      // Handle hex strings that start with "0x"
+      let numericBalance = balance;
+      if (typeof balance === "string" && balance.startsWith("0x")) {
+        numericBalance = BigInt(balance).toString();
+      }
 
-    const num = parseFloat(balance);
-    if (num < 0.000001) return num.toExponential(4);
-    if (num < 0.01) return num.toFixed(6);
-    if (num < 1) return num.toFixed(4);
-    if (num < 10000) return num.toFixed(4);
-    return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      // Convert balance to a number
+      const numBalance = Number(numericBalance);
+
+      // Check if we have a valid number
+      if (isNaN(numBalance)) {
+        return "0.000000";
+      }
+
+      // Handle abbreviations for large numbers
+      if (numBalance >= 1_000_000_000_000) {
+        // Trillion+
+        return (numBalance / 1_000_000_000_000).toFixed(2) + "T";
+      } else if (numBalance >= 1_000_000_000) {
+        // Billion+
+        return (numBalance / 1_000_000_000).toFixed(2) + "B";
+      } else if (numBalance >= 1_000_000) {
+        // Million+
+        return (numBalance / 1_000_000).toFixed(2) + "M";
+      } else if (numBalance >= 1_000) {
+        // Thousand+
+        return (numBalance / 1_000).toFixed(2) + "K";
+      } else if (numBalance >= 1) {
+        // Between 1 and 999
+        return numBalance.toFixed(3);
+      } else if (numBalance === 0) {
+        // Exactly zero
+        return "0.000";
+      } else {
+        // Small fractions - use more decimal places but cap at 6
+        // For very small numbers, show up to 6 decimal places
+        if (numBalance < 0.0001) {
+          return numBalance.toFixed(6);
+        } else if (numBalance < 0.01) {
+          return numBalance.toFixed(5);
+        } else {
+          return numBalance.toFixed(4);
+        }
+      }
+    } catch (e) {
+      console.error("Error formatting balance:", e);
+      return "0.000000";
+    }
   };
+
+  const getButtonConfig = () => {
+    // Step 1: Swap (if needed and not completed)
+    if (needsSwap && !swapCompleted) {
+      return {
+        text: isSwapping ? "swapping..." : `swap ${sourceToken?.ticker || ''} to ${destinationToken?.ticker || ''}`,
+        onClick: handleSwapStep,
+        disabled: !amount || parseFloat(amount) <= 0 || isSwapping || !sourceToken || !destinationToken,
+        loading: isSwapping
+      };
+    }
+  
+    // Step 2: Approve & Deposit
+    return {
+      text: isApproving ? "approving..." : isDepositing ? "depositing..." : "approve & deposit",
+      onClick: handleApproveAndDeposit,
+      disabled: !amount || parseFloat(amount) <= 0 || isApproving || isDepositing || !activeWallet,
+      loading: isApproving || isDepositing
+    };
+  };
+
+  const buttonConfig = getButtonConfig();
+
+  
 
   // Function to handle Max button click
   const handleMaxButtonClick = () => {
-    if (tokenBalance && parseFloat(tokenBalance) > 0) {
+    if (currentBalance && parseFloat(currentBalance) > 0) {
+      // Get the balance and format it properly
+      let balance = currentBalance;
+
+      // Convert from wei to token units if needed (check if it's a hex string or very large number)
+      if (
+        typeof balance === "string" &&
+        (balance.startsWith("0x") || parseFloat(balance) > 1e15)
+      ) {
+        // Assume it's in wei, convert to token units
+        const balanceInWei = balance.startsWith("0x")
+          ? BigInt(balance)
+          : BigInt(parseFloat(balance).toString());
+        const decimals = sourceToken?.decimals || 18;
+        balance = ethers.formatUnits(balanceInWei, decimals);
+      }
+
       // Set amount to the user's token balance (with slight reduction to avoid gas issues)
-      // For some tokens, we reduce by a tiny amount to avoid "insufficient funds" errors
-      const maxAmount = parseFloat(tokenBalance) * 0.9999;
-      setAmount(maxAmount.toString());
+      const maxAmount = parseFloat(balance) * 0.9999;
     }
   };
 
@@ -470,6 +743,7 @@ export const VaultModal = ({
     // Start approval process
     setIsApprovalLoading(true);
     setApprovalError(null);
+    await switchToSourceChain();
 
     try {
       // Import approval function dynamically
@@ -491,7 +765,7 @@ export const VaultModal = ({
         provider,
         selectedAsset.id,
         vault?.id ?? 0,
-        amount,
+        amount
       );
 
       if (result.success) {
@@ -503,7 +777,7 @@ export const VaultModal = ({
     } catch (error) {
       console.error("Approval error:", error);
       setApprovalError(
-        error instanceof Error ? error.message : "Unknown error occurred",
+        error instanceof Error ? error.message : "Unknown error occurred"
       );
     } finally {
       setIsApprovalLoading(false);
@@ -553,12 +827,12 @@ export const VaultModal = ({
         provider,
         selectedAsset.id,
         vault?.id ?? 0,
-        amount,
+        amount
       );
 
       if (result.success) {
         alert(
-          `Deposit successful: ${amount} ${selectedAsset.name} deposited to ${vault?.name ?? "vault"}`,
+          `Deposit successful: ${amount} ${selectedAsset.name} deposited to ${vault?.name ?? "vault"}`
         );
         onOpenChange(false);
       } else {
@@ -567,7 +841,7 @@ export const VaultModal = ({
     } catch (error) {
       console.error("Deposit error:", error);
       setDepositError(
-        error instanceof Error ? error.message : "Unknown error occurred",
+        error instanceof Error ? error.message : "Unknown error occurred"
       );
     } finally {
       setIsDepositLoading(false);
@@ -579,6 +853,15 @@ export const VaultModal = ({
       <DialogContent className="sm:w-1/2 w-2/3 rounded-lg bg-[#18181B] border-[#27272A] border [&>button]:!focus:ring-0 [&>button]:!focus:ring-offset-0 [&>button]:!focus:outline-none [&_svg.lucide-x]:text-amber-500 [&_svg.lucide-x]:w-[1.5rem] [&_svg.lucide-x]:h-[1.5rem] [&_svg.lucide-x]:bg-[#442E0B] [&_svg.lucide-x]:rounded-[3px] [&_svg.lucide-x]:border-[#61410B] [&_svg.lucide-x]:border-[0.5px]">
         <DialogHeader>
           <DialogTitle className="text-[#FAFAFA] flex items-center gap-3">
+            <button
+              onClick={() => {
+                debugger;
+                console.log("Button clicked");
+                console.log(`tokensByCompositeKey:`, tokensByCompositeKey);
+              }}
+            >
+              HELLO MATE!!
+            </button>
             <div className="w-8 h-8 min-w-[2rem] bg-zinc-100/10 rounded-full flex items-center justify-center overflow-hidden">
               {TOKEN_SVG_MAPPING[vault.name] ? (
                 <div className="w-5 h-5 relative flex items-center justify-center">
@@ -629,7 +912,7 @@ export const VaultModal = ({
                       window.open(
                         vault.analyticsUrl ||
                           `https://analytics.example.com/vaults/${vault.id}`,
-                        "_blank",
+                        "_blank"
                       )
                     }
                   >
@@ -666,7 +949,7 @@ export const VaultModal = ({
                       window.open(
                         vault.analyticsUrl ||
                           `https://analytics.example.com/vaults/${vault.id}`,
-                        "_blank",
+                        "_blank"
                       )
                     }
                   >
@@ -684,7 +967,7 @@ export const VaultModal = ({
                       window.open(
                         vault.analyticsUrl ||
                           `https://analytics.example.com/vaults/${vault.id}`,
-                        "_blank",
+                        "_blank"
                       )
                     }
                   >
@@ -703,7 +986,7 @@ export const VaultModal = ({
                 "text-sm font-medium transition-colors",
                 activeTab === "deposit"
                   ? "text-amber-500 hover:text-amber-400 hover:bg-transparent"
-                  : "text-zinc-50 hover:text-zinc-200 hover:bg-transparent",
+                  : "text-zinc-50 hover:text-zinc-200 hover:bg-transparent"
               )}
               onClick={() => setActiveTab("deposit")}
             >
@@ -715,7 +998,7 @@ export const VaultModal = ({
                 "text-sm font-medium transition-colors",
                 activeTab === "withdraw"
                   ? "text-amber-500 hover:text-amber-400 hover:bg-transparent"
-                  : "text-zinc-50 hover:text-zinc-200 hover:bg-transparent",
+                  : "text-zinc-50 hover:text-zinc-200 hover:bg-transparent"
               )}
               onClick={() => setActiveTab("withdraw")}
             >
@@ -735,39 +1018,39 @@ export const VaultModal = ({
                 <>
                   {/* Amount Input with balance display */}
                   <div className="flex justify-between text-sm text-zinc-400 mb-2">
-                    <div>Amount to Deposit</div>
+                    <div>amount to deposit</div>
                     <div className="flex items-center">
-                      {isLoadingBalance ? (
-                        <span className="text-xs text-zinc-500">
-                          Loading balance...
-                        </span>
-                      ) : (
-                        <span className="text-xs text-zinc-500">
-                          Balance: {formatBalance(tokenBalance)}{" "}
-                          {selectedAsset.name}
-                        </span>
-                      )}
+                      <span className="text-xs text-zinc-500">
+                        balance: {formatBalance(currentBalance)}{" "}
+                        {sourceToken?.ticker || ""}
+                      </span>
                     </div>
+                    <SelectChainButton
+                      chainsToShow={chainsToShow}
+                      storeType="source"
+                    />
                   </div>
                   <div className="flex border border-zinc-700 rounded-md overflow-hidden mb-4 h-14 relative">
                     <input
                       type="text"
                       inputMode="decimal"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) => handleAmountChange(e)}
                       placeholder="0.0"
-                      className="flex-grow bg-transparent border-none text-zinc-100 p-3 focus:outline-none"
+                      className="flex-grow bg-transparent border-none text-zinc-100 p-3 focus:outline-none font-mono"
                     />
                     {/* Max button - only show if there's a balance and user is connected */}
-                    {activeWallet && parseFloat(tokenBalance) > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleMaxButtonClick}
-                        className="absolute right-[145px] top-1/2 transform -translate-y-1/2 px-2 py-1 rounded text-xs font-medium text-amber-500 hover:text-amber-400 bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
-                      >
-                        MAX
-                      </button>
-                    )}
+                    {activeWallet &&
+                      currentBalance &&
+                      parseFloat(currentBalance) > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMaxButtonClick}
+                          className="absolute right-[145px] top-1/2 transform -translate-y-1/2 px-2 py-1 rounded text-xs font-medium text-amber-500 hover:text-amber-400 bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
+                        >
+                          MAX
+                        </button>
+                      )}
 
                     {/* Asset Selector styled like the swap interface */}
                     <div
@@ -779,97 +1062,22 @@ export const VaultModal = ({
                         if (selectEl) selectEl.click();
                       }}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 flex items-center justify-center">
-                          <TokenIcon
-                            tokenId={selectedAsset.id}
-                            fallbackIcon={selectedAsset.icon}
-                            size={22}
-                          />
-                        </div>
-                        <div className="flex flex-col leading-none">
-                          <span className="text-zinc-100">
-                            {selectedAsset.name}
-                          </span>
-                          <span className="text-[10px] text-zinc-400 mt-[2px]">
-                            {selectedAsset.id === "sui"
-                              ? "Sui"
-                              : selectedAsset.id === "solana"
-                                ? "Solana"
-                                : vault.chain || "Ethereum"}
-                          </span>
-                        </div>
-                      </div>
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 flex-shrink-0 text-zinc-400"
-                      >
-                        <path
-                          d="M5 7.5L10 12.5L15 7.5"
-                          stroke="currentColor"
-                          strokeWidth="1.66667"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-
-                      <select
-                        className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
-                        value={selectedAsset.id}
-                        onChange={(e) => {
-                          const newAsset = allTokensForVault.find(
-                            (asset) => asset.id === e.target.value,
-                          );
-                          if (newAsset) {
-                            setSelectedAsset(newAsset);
-                            // Reset approval status for new token
-                            setIsApproved(false);
-                            setApprovalError(null);
-                            // Token balance will update via useEffect
-                          }
-                        }}
-                      >
-                        {/* Vault-specific tokens first */}
-                        {vaultOptions.tokens &&
-                          vaultOptions.tokens.map((asset) => (
-                            <option key={asset.id} value={asset.id}>
-                              {asset.name}
-                            </option>
-                          ))}
-
-                        {/* Add a separator if both vault-specific and common tokens exist */}
-                        {vaultOptions.tokens &&
-                          vaultOptions.tokens.length > 0 &&
-                          COMMON_TOKENS.length > 0 && (
-                            <option disabled>──────────</option>
-                          )}
-
-                        {/* Add common tokens */}
-                        {COMMON_TOKENS.map((asset) => (
-                          <option key={asset.id} value={asset.id}>
-                            {asset.name}
-                          </option>
-                        ))}
-                      </select>
+                      <SelectTokenButton variant="source" vault={true} />
                     </div>
                   </div>
 
                   {/* User Receives Section */}
                   <div className="text-sm text-zinc-400 mb-2">
-                    User Receives
+                    user receives
                   </div>
                   <div className="flex border border-zinc-700 rounded-md overflow-hidden mb-4 h-14">
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={amount} // Just using the same amount for now
+                      value={displayReceiveAmount} // <-- Updated line
                       readOnly
                       placeholder="0.0"
-                      className="flex-grow bg-transparent border-none text-zinc-100 p-3 focus:outline-none"
+                      className="flex-grow bg-transparent border-none text-zinc-100 p-3 focus:outline-none font-mono"
                     />
 
                     {/* Token Received - Show specific token for this vault with styling like the swap interface */}
@@ -943,9 +1151,7 @@ export const VaultModal = ({
 
                   {/* Approval and Deposit Buttons */}
                   <div className="space-y-3">
-                    {/* Approval Button (shown if not approved yet) */}
-                    {!isApproved && (
-                      <Button
+                    {/* <Button
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
                         onClick={handleApproveToken}
                         disabled={
@@ -963,36 +1169,15 @@ export const VaultModal = ({
                         ) : !activeWallet ? (
                           "Connect Wallet to Approve"
                         ) : (
-                          `Approve ${selectedAsset.name}`
+                          `Approve ${.name}`
                         )}
-                      </Button>
-                    )}
-
-                    {/* Deposit Button */}
-                    <Button
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-black font-medium"
-                      onClick={handleDepositConfirm}
-                      disabled={
-                        !amount ||
-                        parseFloat(amount) <= 0 ||
-                        isDepositLoading ||
-                        !isApproved ||
-                        !activeWallet
-                      }
-                    >
-                      {isDepositLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : !activeWallet ? (
-                        "Connect Wallet to Deposit"
-                      ) : !isApproved ? (
-                        "Approve First"
-                      ) : (
-                        "Confirm Deposit"
-                      )}
-                    </Button>
+                      </Button> */}
+                    <BrandedButton
+                      iconName={needsSwap && !swapCompleted ? "ArrowLeftRight" : "Coins"}
+                      buttonText={buttonConfig.text}
+                      onClick={buttonConfig.onClick}
+                      disabled={buttonConfig.disabled}
+                    />
                   </div>
                 </>
               )}
@@ -1009,7 +1194,7 @@ export const VaultModal = ({
                     window.open(
                       vault.analyticsUrl ||
                         `https://analytics.example.com/vaults/${vault.id}`,
-                      "_blank",
+                      "_blank"
                     )
                   }
                 >

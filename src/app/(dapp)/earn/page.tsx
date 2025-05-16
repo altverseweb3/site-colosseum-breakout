@@ -10,7 +10,10 @@ import { getVedaPoints, FormattedVedaPointsData } from "@/utils/vedapoints";
 import { checkAllVaultsDepositStatus } from "@/utils/checkifpaused";
 import useWeb3Store from "@/store/web3Store";
 import { ExternalLink } from "lucide-react";
-import { useWalletConnection } from "@/utils/walletMethods"
+import { useWalletConnection } from "@/utils/walletMethods";
+import { getTokenMetadata } from "@/utils/tokenApiMethods";
+import { Token } from "@/types/web3";
+import { chains } from "@/config/chains";
 
 // Token SVG mapping with updated image paths from tokens folder
 const TOKEN_SVG_MAPPING: Record<string, string> = {
@@ -85,6 +88,24 @@ const EarnComponent: React.FC = () => {
   const [isVaultStatusLoading, setIsVaultStatusLoading] = useState(true);
   const [selectedVault, setSelectedVault] = useState<VaultDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Web3 store actions
+  const setDestinationToken = useWeb3Store((state) => state.setDestinationToken);
+  const setDestinationChain = useWeb3Store((state) => state.setDestinationChain);
+  const addCustomToken = useWeb3Store((state) => state.addCustomToken);
+  const tokensByCompositeKey = useWeb3Store((state) => state.tokensByCompositeKey);
+  const loadTokens = useWeb3Store((state) => state.loadTokens);
+  const tokensLoading = useWeb3Store((state) => state.tokensLoading);
+  const allTokensList = useWeb3Store((state) => state.allTokensList);
+
+  // Ensure tokens are loaded when component mounts
+  useEffect(() => {
+    if (allTokensList.length === 0 && !tokensLoading) {
+      console.log('Loading tokens on EarnComponent mount...');
+      loadTokens();
+    }
+  }, [loadTokens, tokensLoading, allTokensList.length]);
+  const sourceToken = useWeb3Store((state) => state.sourceToken);
 
   // Effect to load TVL data on page load
   useEffect(() => {
@@ -333,7 +354,100 @@ const EarnComponent: React.FC = () => {
     },
   ];
 
-  const handleVaultClick = (vault: VaultDetails) => {
+  // Helper function to load and set destination token for a vault
+  const loadAndSetDestinationToken = async (vault: VaultDetails) => {
+    // Set destination chain to Ethereum first
+    const ethereumChain = chains.ethereum;
+    setDestinationChain(ethereumChain);
+    console.log('Set destination chain to Ethereum');
+    
+    // Get the first token from the vault's token list
+    const firstTokenTicker = vault.token[0];
+    
+    if (!firstTokenTicker) {
+      console.warn(`No tokens found in vault: ${vault.name}`);
+      return;
+    }
+
+    console.log(`Looking for destination token: ${firstTokenTicker} for vault: ${vault.name}`);
+    
+    // Ensure tokens are loaded first
+    const currentTokensByCompositeKey = useWeb3Store.getState().tokensByCompositeKey;
+    const currentTokensLoading = useWeb3Store.getState().tokensLoading;
+    const currentAllTokensList = useWeb3Store.getState().allTokensList;
+    
+    // If tokens aren't loaded yet, load them first
+    if (Object.keys(currentTokensByCompositeKey).length === 0 && !currentTokensLoading && currentAllTokensList.length === 0) {
+      console.log('Tokens not loaded yet, loading...');
+      const loadTokens = useWeb3Store.getState().loadTokens;
+      await loadTokens();
+    }
+    
+    // Get fresh token state after loading
+    const tokensAfterLoad = useWeb3Store.getState().tokensByCompositeKey;
+    
+    // Find the token in our existing token store
+    // We need to search through tokens on Ethereum (chainId: 1)
+    const chainId = 1; // Ethereum mainnet
+    const tokensForChain = Object.values(tokensAfterLoad).filter(token => token.chainId === chainId);
+    
+    console.log(`Found ${tokensForChain.length} tokens for Ethereum chain`);
+    
+    // Find the token by ticker (case-insensitive)
+    let destinationToken = tokensForChain.find(token => 
+      token.ticker.toLowerCase() === firstTokenTicker.toLowerCase()
+    );
+    
+    // If not found by ticker, try some common mappings
+    if (!destinationToken) {
+      const tickerMappings: Record<string, string> = {
+        'wETH': 'WETH',
+        'LBTC': 'LBTC',
+        'wBTC': 'WBTC',
+        'cbBTC': 'cbBTC',
+        'eBTC': 'eBTC',
+        'eETH': 'eETH',
+        'weETH': 'weETH',
+        'stETH': 'stETH',
+        'wstETH': 'wstETH',
+        'USDC': 'USDC',
+        'DAI': 'DAI',
+        'USDT': 'USDT',
+        'USDe': 'USDe',
+        'deUSD': 'deUSD',
+        'sdeUSD': 'sdeUSD',
+        'EIGEN': 'EIGEN',
+        // Add more mappings as needed
+      };
+      
+      const mappedTicker = tickerMappings[firstTokenTicker];
+      if (mappedTicker) {
+        destinationToken = tokensForChain.find(token => 
+          token.ticker.toLowerCase() === mappedTicker.toLowerCase()
+        );
+      }
+      
+      // If still not found, try looking for the ticker without case sensitivity and partial matches
+      if (!destinationToken) {
+        destinationToken = tokensForChain.find(token => 
+          token.name.toLowerCase().includes(firstTokenTicker.toLowerCase()) ||
+          token.ticker.toLowerCase().includes(firstTokenTicker.toLowerCase().replace('w', ''))
+        );
+      }
+    }
+    
+    if (!destinationToken) {
+      console.warn(`Could not find token ${firstTokenTicker} in token store for vault ${vault.name}`);
+      console.log('Available token tickers:', tokensForChain.map(t => t.ticker));
+      return;
+    }
+    
+    // Set as destination token
+    setDestinationToken(destinationToken);
+    console.log(`Set destination token for ${vault.name}:`, destinationToken);
+  };
+
+  const handleVaultClick = async (vault: VaultDetails) => {
     // Check if we have real APY data for this vault
     const realAPY = vault.contractAddress
       ? apyValues[vault.contractAddress]
@@ -358,6 +472,10 @@ const EarnComponent: React.FC = () => {
       isAcceptingDeposits: isAcceptingDeposits // Use on-chain status for all vaults including Liquid Move ETH
     };
     setSelectedVault(vaultWithData);
+    
+    // Load and set the destination token for this vault
+    await loadAndSetDestinationToken(vaultWithData);
+    
     setIsModalOpen(true);
   };
 
@@ -573,7 +691,7 @@ const PointsTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // STEP 1: grab the “active” wallet out of your store
+  // STEP 1: grab the "active" wallet out of your store
   // getWalletBySourceChain() returns the currently‐selected WalletInfo or undefined
   const activeWallet = useWeb3Store((state) => state.getWalletBySourceChain());
 
@@ -609,7 +727,7 @@ const PointsTab: React.FC = () => {
   }, [activeWallet]);
 
   /**
-   * Helper to convert chain keys (e.g. “ethereum”) into display names
+   * Helper to convert chain keys (e.g. "ethereum") into display names
    */
   const getChainDisplayName = (name: string): string => {
     const displayNames: Record<string, string> = {
@@ -682,7 +800,7 @@ const PointsTab: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Vault‐level points table, or “no points yet” message */}
+                  {/* Vault‐level points table, or "no points yet" message */}
                   {chain.vaults.length > 0 ? (
                     <div className="p-3">
                       <table className="w-full">
