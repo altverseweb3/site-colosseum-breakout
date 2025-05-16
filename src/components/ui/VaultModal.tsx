@@ -853,15 +853,6 @@ export const VaultModal = ({
       <DialogContent className="sm:w-1/2 w-2/3 rounded-lg bg-[#18181B] border-[#27272A] border [&>button]:!focus:ring-0 [&>button]:!focus:ring-offset-0 [&>button]:!focus:outline-none [&_svg.lucide-x]:text-amber-500 [&_svg.lucide-x]:w-[1.5rem] [&_svg.lucide-x]:h-[1.5rem] [&_svg.lucide-x]:bg-[#442E0B] [&_svg.lucide-x]:rounded-[3px] [&_svg.lucide-x]:border-[#61410B] [&_svg.lucide-x]:border-[0.5px]">
         <DialogHeader>
           <DialogTitle className="text-[#FAFAFA] flex items-center gap-3">
-            <button
-              onClick={() => {
-                debugger;
-                console.log("Button clicked");
-                console.log(`tokensByCompositeKey:`, tokensByCompositeKey);
-              }}
-            >
-              HELLO MATE!!
-            </button>
             <div className="w-8 h-8 min-w-[2rem] bg-zinc-100/10 rounded-full flex items-center justify-center overflow-hidden">
               {TOKEN_SVG_MAPPING[vault.name] ? (
                 <div className="w-5 h-5 relative flex items-center justify-center">
@@ -1081,7 +1072,7 @@ export const VaultModal = ({
                     />
 
                     {/* Token Received - Show specific token for this vault with styling like the swap interface */}
-                    <div className="h-full px-3 py-3 bg-zinc-800 text-zinc-100 border-l border-zinc-700 flex items-center justify-between min-w-[140px]">
+                    <div className="h-full px-3 py-3 bg-zinc-800 text-zinc-100 border-l border-zinc-700 flex items-center justify-between min-w-[150px]">
                       {VAULT_RECEIVE_TOKENS[vault.name] ? (
                         <>
                           <div className="flex items-center gap-2">
