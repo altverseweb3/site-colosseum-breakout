@@ -11,8 +11,6 @@ import { checkAllVaultsDepositStatus } from "@/utils/checkifpaused";
 import useWeb3Store from "@/store/web3Store";
 import { ExternalLink } from "lucide-react";
 import { useWalletConnection } from "@/utils/walletMethods";
-import { getTokenMetadata } from "@/utils/tokenApiMethods";
-import { Token } from "@/types/web3";
 import { chains } from "@/config/chains";
 
 // Token SVG mapping with updated image paths from tokens folder
@@ -105,7 +103,6 @@ const EarnComponent: React.FC = () => {
       loadTokens();
     }
   }, [loadTokens, tokensLoading, allTokensList.length]);
-  const sourceToken = useWeb3Store((state) => state.sourceToken);
 
   // Effect to load TVL data on page load
   useEffect(() => {

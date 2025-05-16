@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/utils/checkifpaused.js
 import * as ethers from "ethers";
 import { VAULT_ID_TO_TELLER } from "./mapping";
