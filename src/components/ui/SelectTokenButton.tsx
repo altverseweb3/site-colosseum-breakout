@@ -300,11 +300,13 @@ interface SelectTokenButtonProps {
   vault?: boolean;
   onTokenSelect?: (token: Token) => void;
   selectedToken?: Token;
+  tokens?: string[];
 }
 
 export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   variant,
   vault,
+  tokens,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -457,8 +459,11 @@ export const SelectTokenButton: React.FC<SelectTokenButtonProps> = ({
   }, [chainTokens]);
 
   const allTokens = useMemo(() => {
-    if(vault) {
-      return chainTokens.filter((token) => token.ticker === "ETH" || token.ticker === "WETH" || token.ticker === "EETH" || token.ticker === "SUI" || token.ticker === "SOL");
+    if(vault && tokens?.length) {
+      const tokensLower = tokens.map(t => t.toLowerCase());
+      return chainTokens.filter(token => 
+        tokensLower.includes(token.ticker.toLowerCase())
+      );
     } else {
       return chainTokens.filter((token) => !token.isWalletToken);
     }

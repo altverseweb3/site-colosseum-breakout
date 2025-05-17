@@ -1048,7 +1048,7 @@ export const VaultModal = ({
                         if (selectEl) selectEl.click();
                       }}
                     >
-                      <SelectTokenButton variant="source" vault={true} />
+                      <SelectTokenButton variant="source" vault={true} tokens={vault.token} />
                     </div>
                   </div>
 
