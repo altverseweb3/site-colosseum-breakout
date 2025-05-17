@@ -90,8 +90,11 @@ const EarnComponent: React.FC = () => {
   // Web3 store actions
   const setDestinationToken = useWeb3Store((state) => state.setDestinationToken);
   const setDestinationChain = useWeb3Store((state) => state.setDestinationChain);
+  const setSourceChain = useWeb3Store((state) => state.setSourceChain);
+  const setSourceToken = useWeb3Store((state) => state.setSourceToken);
   const addCustomToken = useWeb3Store((state) => state.addCustomToken);
   const tokensByCompositeKey = useWeb3Store((state) => state.tokensByCompositeKey);
+  const tokensByChainId = useWeb3Store((state) => state.tokensByChainId);
   const loadTokens = useWeb3Store((state) => state.loadTokens);
   const tokensLoading = useWeb3Store((state) => state.tokensLoading);
   const allTokensList = useWeb3Store((state) => state.allTokensList);
@@ -493,6 +496,12 @@ const EarnComponent: React.FC = () => {
                     tab.id === "stake" ||
                     tab.id === "points")
                 ) {
+                  if (tab.id === "points") {
+                    // set active chain to ethereum
+                    // set active token to ETH
+                    setSourceChain(chains.ethereum);
+                    setSourceToken(tokensByChainId[chains.ethereum.chainId].find(token => token.ticker === "ETH")!);
+                  }
                   setActiveTab(tab.id as "yield" | "stake" | "points");
                 }
               }}
